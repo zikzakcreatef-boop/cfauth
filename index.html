@@ -22,7 +22,7 @@
 <body>
 
 <div class="login-card">
-    <h2>GAS認証システム</h2>
+    <h2>CF認証システム</h2>
     <input type="email" id="userId" placeholder="メールアドレス" required>
     <input type="password" id="password" placeholder="パスワード" required>
     <button id="loginBtn" onclick="login()">ログイン</button>
@@ -50,7 +50,7 @@
         const msg = document.getElementById('message');
 
         if (!userId || !password) {
-            msg.innerText = "IDとパスワードを入力してください";
+            msg.innerText = "メールアドレスとパスワードを入力してください";
             msg.className = "error";
             return;
         }
