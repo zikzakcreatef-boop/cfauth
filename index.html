@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS認証システム - ログイン</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
+        .login-card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 320px; }
+        h2 { text-align: center; color: #333; font-size: 1.2rem; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; }
+        #message { margin-top: 15px; font-size: 14px; text-align: center; min-height: 1.5em; }
+        .error { color: #dc3545; }
+        .success { color: #28a745; font-weight: bold; }
+        .nav-links { margin-top: 20px; font-size: 12px; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+        .nav-links a { color: #007bff; text-decoration: none; margin: 0 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <h2>GAS認証システム</h2>
+    <input type="email" id="userId" placeholder="メールアドレス" required>
+    <input type="password" id="password" placeholder="パスワード" required>
+    <button id="loginBtn" onclick="login()">ログイン</button>
+    <div id="message"></div>
+
+    <div class="nav-links">
+        <a href="signup.html">新規利用の申請</a> | 
+        <a onclick="openResetModal()">パスワードを忘れた</a>
+    </div>
+</div>
+
+<script>
+    // GASのURL（デプロイした最新のURL）
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwwqEvQgapuJO8UXWBeHHOHq7GxavWxjhnyELAikMEYJu-1jLC_J2AzpNATDrV6uyTxIw/exec";
+    // ログイン成功後の遷移先
+    const REDIRECT_URL = "https://www.notion.so/2c79609a7be68066befecbbfefbdd470";
+
+    /**
+     * 通常のログイン処理
+     */
+    async function login() {
+        const userId = document.getElementById('userId').value;
+        const password = document.getElementById('password').value;
+        const btn = document.getElementById('loginBtn');
+        const msg = document.getElementById('message');
+
+        if (!userId || !password) {
+            msg.innerText = "IDとパスワードを入力してください";
+            msg.className = "error";
+            return;
+        }
+
+        btn.disabled = true;
+        msg.innerText = "認証中...";
+        msg.className = "";
+
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "login",
+                    userId: userId,
+                    password: password
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                msg.innerText = "認証成功！移動します...";
+                msg.className = "success";
+                setTimeout(() => {
+                    window.location.href = `${REDIRECT_URL}?token=${result.token}`;
+                }, 800);
+            } else {
+                msg.innerText = result.message;
+                msg.className = "error";
+                btn.disabled = false;
+            }
+        } catch (error) {
+            msg.innerText = "通信エラーが発生しました";
+            msg.className = "error";
+            btn.disabled = false;
+        }
+    }
+
+    /**
+     * パスワードリセットのモーダル（入力）処理
+     */
+    async function openResetModal() {
+        const email = prompt("登録済みのメールアドレスを入力してください。\nパスワード再設定用のメールを送信します。");
+        
+        // キャンセルされた場合や空欄の場合は何もしない
+        if (email === null || email.trim() === "") return;
+
+        const msg = document.getElementById('message');
+        msg.innerText = "アドレス確認中...";
+        msg.className = "";
+
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "request_reset",
+                    email: email.trim()
+                })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                msg.innerText = "リセットメールを送信しました。";
+                msg.className = "success";
+                alert("指定のアドレスにメールを送信しました！\n届いたリンクからパスワードを再設定してください。");
+            } else {
+                // ここで「登録されていないアドレス」なら弾かれる
+                msg.innerText = result.message;
+                msg.className = "error";
+                alert("エラー: " + result.message);
+            }
+        } catch (error) {
+            msg.innerText = "通信エラーが発生しました";
+            msg.className = "error";
+            alert("通信エラーが発生しました。ネット環境を確認してください。");
+        }
+    }
+</script>
+
+</body>
+</html>
