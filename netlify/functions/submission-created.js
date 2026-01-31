@@ -1,17 +1,17 @@
 /**
  * Netlify Function: submission-created
- * フォームが送信された時に自動で実行されるスクリプト
+ * 標準の fetch を使用する修正版
  */
-const fetch = require('node-fetch');
-
 exports.handler = async (event) => {
   // 1. 送信されたフォームデータを解析
-  const payload = JSON.parse(event.body).payload;
-  const userEmail = payload.data.email; // フォームの name="email" から取得
+  const body = JSON.parse(event.body);
+  const payload = body.payload;
+  const userEmail = payload.data.email; 
 
   console.log(`送信を受け付けました。宛先: ${userEmail}`);
 
   // 2. Resend API を使ってメールを送信
+  // Netlify Functions(Node.js 18以降)では require なしで fetch が使えるぜ！
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
       'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
     },
     body: JSON.stringify({
-      from: 'onboarding@resend.dev', // 初回テスト用のアドレス
+      from: 'onboarding@resend.dev',
       to: userEmail,
       subject: '【重要】パスワード再設定のご案内',
       html: `
@@ -42,8 +42,8 @@ exports.handler = async (event) => {
     console.log('メール送信成功！');
     return { statusCode: 200 };
   } else {
-    const error = await response.text();
-    console.error('メール送信失敗:', error);
+    const errorText = await response.text();
+    console.error('メール送信失敗:', errorText);
     return { statusCode: 500 };
   }
 };
