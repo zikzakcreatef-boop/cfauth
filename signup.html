@@ -1,28 +1,33 @@
 <!DOCTYPE html>
-<html>
-  <head>
+<html lang="ja">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
-      .signup-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 320px; text-align: center; }
-      h3 { color: #333; margin-bottom: 1.5rem; }
-      input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-      button { width: 100%; padding: 12px; background: #34a853; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-      button:disabled { background: #ccc; }
-      .back-link { background: none; color: #4285f4; border: none; text-decoration: underline; cursor: pointer; font-size: 0.8rem; margin-top: 15px; display: block; width: 100%; }
-      #message { margin-top: 15px; font-size: 0.85rem; min-height: 1.2rem; }
-    </style>
-  </head>
-  <body>
-    <div class="signup-card">
-      <h3>Create Account</h3>
-      <input type="text" id="userName" placeholder="Your Name" required>
-      <input type="email" id="email" placeholder="Email Address" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <button id="regBtn" onclick="register()">アカウント作成申請</button>
-      <button class="back-link" onclick="location.href='index.html'">ログインに戻る</button>
-      <div id="message"></div>
+    <title>新規登録 - CF認証システム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h3>Create Account</h3>
+        <p class="description">必要事項を入力して申請してください。</p>
+        
+        <div class="input-group">
+            <input type="text" id="userName" placeholder="お名前" required>
+        </div>
+        <div class="input-group">
+            <input type="email" id="email" placeholder="メールアドレス" required>
+        </div>
+        <div class="input-group">
+            <input type="password" id="password" placeholder="パスワード" required>
+        </div>
+        
+        <button id="regBtn" class="btn btn-success" onclick="register()">アカウント作成申請</button>
+        
+        <div id="message" class="status-message"></div>
+        
+        <div class="footer-links">
+            <a href="index.html" class="back-link">ログイン画面に戻る</a>
+        </div>
     </div>
 
     <script>
@@ -42,7 +47,7 @@
         }
 
         regBtn.disabled = true;
-        msgDiv.style.color = "#4285f4";
+        msgDiv.style.color = "#007bff";
         msgDiv.innerText = "登録処理中...";
 
         try {
@@ -50,7 +55,7 @@
             method: "POST",
             body: JSON.stringify({
               action: "signup",
-              userId: email, // GAS側の引数名に合わせてuserId
+              userId: email,
               password: password,
               name: name
             })
@@ -59,7 +64,7 @@
           const res = await response.json();
 
           if (res.success) {
-            msgDiv.style.color = "#34a853";
+            msgDiv.style.color = "#28a745";
             msgDiv.innerText = "申請成功しました！";
             alert(name + " さん、申請成功しました！\n管理者が承認するまでお待ちください。");
             window.location.href = "index.html";
@@ -69,10 +74,11 @@
             regBtn.disabled = false;
           }
         } catch (err) {
+          msgDiv.style.color = "#d93025";
           msgDiv.innerText = "通信エラーが発生しました。";
           regBtn.disabled = false;
         }
       }
     </script>
-  </body>
+</body>
 </html>
