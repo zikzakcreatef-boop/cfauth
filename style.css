@@ -1,7 +1,7 @@
-/* 全体レイアウト */
+/* 1. 全体の土台 */
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f0f2f5;
+    background-color: #f0f2f5; /* 薄いグレーの背景 */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -9,94 +9,107 @@ body {
     margin: 0;
 }
 
-/* ダイアログボックス（カード型） */
+/* 2. 外側の枠組み */
 .container {
-    background: white;
-    padding: 40px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     width: 100%;
     max-width: 400px;
-    text-align: center;
+    padding: 20px;
 }
 
+/* 3. 白いカード（ここが全画面共通のダイアログ正体） */
+.form-box, .container {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    box-sizing: border-box;
+}
+
+/* index.htmlなどで二重に枠が出ないように調整 */
+.container .form-box {
+    box-shadow: none;
+    padding: 0;
+}
+
+/* 4. 見出しと説明文 */
 h2, h3 {
     margin-top: 0;
-    margin-bottom: 10px;
-    color: #333;
+    color: #1a1a1a;
 }
 
 .description {
     font-size: 14px;
     color: #666;
-    margin-bottom: 25px;
+    margin-bottom: 24px;
 }
 
-/* 入力欄 */
+/* 5. 入力フォーム */
 .input-group {
-    margin-bottom: 15px;
+    margin-bottom: 16px;
 }
 
 input {
     width: 100%;
     padding: 12px;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 6px;
     box-sizing: border-box;
     font-size: 16px;
+    transition: border-color 0.2s;
 }
 
-/* ボタン */
-.btn {
+input:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+/* 6. ボタン（形状・サイズを完全固定） */
+.btn, .login-btn {
     width: 100%;
-    padding: 12px;
+    padding: 14px;
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 16px;
     font-weight: bold;
-    transition: background 0.3s;
+    display: block;
+    transition: background 0.2s;
 }
 
-.btn:hover {
+.btn:hover, .login-btn:hover {
     background-color: #0056b3;
 }
 
-.btn:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
-
-/* 登録用ボタン（緑） */
+/* 成功時（緑）のボタン */
 .btn-success {
-    background-color: #28a745;
+    background-color: #28a745 !important;
 }
 
 .btn-success:hover {
-    background-color: #218838;
+    background-color: #218838 !important;
 }
 
-/* リンク */
+/* 7. メッセージとリンク */
+.status-message {
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: bold;
+    min-height: 1.5em;
+}
+
 .footer-links {
-    margin-top: 20px;
+    margin-top: 24px;
+    font-size: 14px;
 }
 
 .back-link {
-    font-size: 14px;
     color: #007bff;
     text-decoration: none;
 }
 
 .back-link:hover {
     text-decoration: underline;
-}
-
-/* メッセージ */
-.status-message {
-    margin-top: 15px;
-    font-weight: bold;
-    font-size: 14px;
-    min-height: 1.2em;
 }
