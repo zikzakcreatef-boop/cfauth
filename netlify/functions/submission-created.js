@@ -27,7 +27,7 @@ exports.handler = async (event) => {
           <h2>パスワード再設定のリクエスト</h2>
           <p>以下のボタンをクリックして、新しいパスワードを設定してください。</p>
           <p style="margin: 30px 0;">
-            <a href="https://${process.env.URL}/reset-password.html" 
+            <a href="https://${process.env.URL}/reset_password.html" 
                style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
                パスワードを再設定する
             </a>
