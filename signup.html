@@ -32,6 +32,7 @@
 
     <script>
       const GAS_URL = "https://script.google.com/macros/s/AKfycbzh6ZqzN2VPasEOGQ9yJ-eS-dvCrzjx0nE1dCi3pjJiLbPQMu3e4EAvCVvpwdHXE1RzYA/exec";
+
       const msgDiv = document.getElementById('message');
       const regBtn = document.getElementById('regBtn');
 
@@ -65,18 +66,21 @@
 
           if (res.success) {
             msgDiv.style.color = "#28a745";
-            msgDiv.innerText = "申請成功しました！";
-            alert(name + " さん、申請成功しました！\n管理者が承認するまでお待ちください。");
-            window.location.href = "index.html";
+            msgDiv.innerText = "メールを確認してください";
+            // GAS側から返ってきた「確認メールを送信しました...」というメッセージを表示する
+            alert(res.message);
+            // ログイン画面（login.html）へ遷移
+            window.location.href = "login.html";
           } else {
             msgDiv.style.color = "#d93025";
             msgDiv.innerText = res.message;
             regBtn.disabled = false;
           }
-        } catch (err) {
+        } catch (error) {
           msgDiv.style.color = "#d93025";
           msgDiv.innerText = "通信エラーが発生しました。";
           regBtn.disabled = false;
+          console.error(error);
         }
       }
     </script>
