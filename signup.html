@@ -26,12 +26,12 @@
         <div id="message" class="status-message"></div>
         
         <div class="footer-links">
-            <a href="index.html" class="back-link">ログイン画面に戻る</a>
+            <a href="login.html" class="back-link">ログイン画面に戻る</a>
         </div>
     </div>
 
     <script>
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbzh6ZqzN2VPasEOGQ9yJ-eS-dvCrzjx0nE1dCi3pjJiLbPQMu3e4EAvCVvpwdHXE1RzYA/exec";
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbzh6ZqzN2VPasEOGQ9yJ-eS-dvCrzjx0n_T9P5h6p2uXlKjQ69oPqF_2C57T0l7W0-O/exec";
 
       const msgDiv = document.getElementById('message');
       const regBtn = document.getElementById('regBtn');
@@ -67,8 +67,10 @@
           if (res.success) {
             msgDiv.style.color = "#28a745";
             msgDiv.innerText = "メールを確認してください";
-            // GAS側から返ってきた「確認メールを送信しました...」というメッセージを表示する
+            
+            // ★ここが重要：GASから返ってきた「確認メールを送信しました...」を表示
             alert(res.message);
+            
             // ログイン画面（login.html）へ遷移
             window.location.href = "login.html";
           } else {
