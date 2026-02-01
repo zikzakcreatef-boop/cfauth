@@ -10,7 +10,6 @@
     <div class="container">
         <h3>Create Account</h3>
         <p class="description">必要事項を入力して申請してください。</p>
-        
         <div class="input-group">
             <input type="text" id="userName" placeholder="お名前" required>
         </div>
@@ -20,19 +19,15 @@
         <div class="input-group">
             <input type="password" id="password" placeholder="パスワード" required>
         </div>
-        
         <button id="regBtn" class="btn btn-success" onclick="register()">アカウント作成申請</button>
-        
         <div id="message" class="status-message"></div>
-        
         <div class="footer-links">
             <a href="index.html" class="back-link">ログイン画面に戻る</a>
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbwnzSSz9eqsgce0EpmdCAQm_79vcUjGDPKzLGPAHEZs6mKkr0APEZUr5cnSzMOOBTmUNw/exec";
-
       const msgDiv = document.getElementById('message');
       const regBtn = document.getElementById('regBtn');
 
@@ -61,14 +56,11 @@
               name: name
             })
           });
-
           const res = await response.json();
-
           if (res.success) {
             msgDiv.style.color = "#28a745";
             msgDiv.innerText = "メールを確認してください";
             alert(res.message);
-            // リダイレクト先を index.html に固定
             window.location.href = "index.html";
           } else {
             msgDiv.style.color = "#d93025";
@@ -77,7 +69,7 @@
           }
         } catch (error) {
           msgDiv.style.color = "#d93025";
-          msgDiv.innerText = "通信エラーが発生しました。";
+          msgDiv.innerText = "エラーが発生しました。";
           regBtn.disabled = false;
         }
       }
