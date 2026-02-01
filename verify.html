@@ -3,20 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>メール認証完了 | GAS認証システム</title>
-    <link rel="stylesheet" href="style.css"> </head>
+    <title>認証完了 - CF認証システム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 <body>
     <div class="container">
-        <h2>メール認証が完了しました</h2>
-        <p>メールアドレスの確認が正常に完了しました。</p>
-        <p>現在、管理者がアカウントの有効化（承認）を行っています。<br>
-           承認が完了するまで今しばらくお待ちください。</p>
+        <h3>Verification Complete</h3>
+        <p class="description">メール認証が正常に完了しました！</p>
         
-        <div class="info-box">
-            <p>※承認が完了すると、登録したメールアドレスでログインできるようになります。</p>
+        <div class="status-box success">
+            <p>管理者があなたのアカウントを承認するまで、今しばらくお待ちください。</p>
         </div>
 
-        <button onclick="location.href='index.html'" class="btn">ログイン画面へ</button>
+        <div class="footer-links">
+            <p>3秒後にログイン画面へ戻ります...</p>
+            <a href="index.html" class="back-link">戻らない場合はこちらをクリック</a>
+        </div>
     </div>
+
+    <script>
+        // 3秒後に index.html へリダイレクト
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 3000);
+    </script>
 </body>
 </html>
