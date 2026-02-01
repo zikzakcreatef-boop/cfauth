@@ -26,12 +26,12 @@
         <div id="message" class="status-message"></div>
         
         <div class="footer-links">
-            <a href="login.html" class="back-link">ログイン画面に戻る</a>
+            <a href="index.html" class="back-link">ログイン画面に戻る</a>
         </div>
     </div>
 
     <script>
-      const GAS_URL = "https://script.google.com/macros/s/AKfycbxvlpPQRx6Xa4IjdBhRdI1hdQKhAAgOy1j_5bethNJOvRPdXGDROldGG-3gw1WfavwYOw/exec";
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbwnzSSz9eqsgce0EpmdCAQm_79vcUjGDPKzLGPAHEZs6mKkr0APEZUr5cnSzMOOBTmUNw/exec";
 
       const msgDiv = document.getElementById('message');
       const regBtn = document.getElementById('regBtn');
@@ -67,11 +67,8 @@
           if (res.success) {
             msgDiv.style.color = "#28a745";
             msgDiv.innerText = "メールを確認してください";
-            
-            // ★ここが重要：GASから返ってきた「確認メールを送信しました...」を表示
             alert(res.message);
-            
-            // ログイン画面（login.html）へ遷移
+            // リダイレクト先を index.html に固定
             window.location.href = "index.html";
           } else {
             msgDiv.style.color = "#d93025";
@@ -82,7 +79,6 @@
           msgDiv.style.color = "#d93025";
           msgDiv.innerText = "通信エラーが発生しました。";
           regBtn.disabled = false;
-          console.error(error);
         }
       }
     </script>
