@@ -46,8 +46,10 @@
                     document.getElementById('system-title').innerText = res.title;
                     document.title = res.title + " - ログイン";
 
-                    // 背景色反映
-                    document.getElementById('main-body').style.background = res.bgColor;
+                    // 背景色反映：CSSに勝てるよう !important 指定で適用
+                    if (res.bgColor) {
+                        document.body.style.setProperty('background', res.bgColor, 'important');
+                    }
 
                     // ロゴ反映
                     if (res.logoUrl && res.logoUrl !== "none") {
@@ -63,7 +65,7 @@
             }
         };
 
-        // 既存のログイン関数
+        // ログイン関数
         async function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
