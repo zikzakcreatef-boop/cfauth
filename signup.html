@@ -28,13 +28,12 @@
 
     <script src="config.js"></script>
     <script>
-      const msgDiv = document.getElementById('message');
-      const regBtn = document.getElementById('regBtn');
-
       async function register() {
         const name = document.getElementById('userName').value;
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
+        const msgDiv = document.getElementById('message');
+        const regBtn = document.getElementById('regBtn');
 
         if (!name || !email || !password) {
           msgDiv.style.color = "#d93025";
@@ -51,6 +50,7 @@
             method: "POST",
             body: JSON.stringify({
               action: "signup",
+              apiKey: API_KEY, // セキュリティゲートを通過
               userId: email,
               password: password,
               name: name
