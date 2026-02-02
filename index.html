@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>読み込み中... - 認証システム</title>
+    <title>読み込み中... - CF認証システム</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
+            
             <h2 id="system-title">Loading...</h2>
+            <p id="system-description" class="description" style="margin-top: -10px; margin-bottom: 20px; min-height: 1.2em;"></p>
+            
             <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
             <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
             <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
@@ -21,13 +24,17 @@
             </div>
         </div>
     </div>
+
     <script src="config.js"></script>
     <script>
-        // 物置から即時復元（2回目以降の訪問用）
+        // 物置（localStorage）から即時復元
         const cachedTitle = localStorage.getItem('cached_system_title');
+        const cachedDesc = localStorage.getItem('cached_system_desc'); // ★
         const cachedBg = localStorage.getItem('cached_bg_color');
         const cachedLogo = localStorage.getItem('cached_logo_url');
+
         if(cachedTitle) { document.getElementById('system-title').innerText = cachedTitle; document.title = cachedTitle; }
+        if(cachedDesc) { document.getElementById('system-description').innerText = cachedDesc; }
         if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
         if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
 
@@ -40,11 +47,14 @@
                 const res = await response.json();
                 if (res.success) {
                     document.getElementById('system-title').innerText = res.title;
+                    document.getElementById('system-description').innerText = res.description; // ★反映
                     document.title = res.title + " - ログイン";
+                    
                     if (res.bgColor) document.body.style.setProperty('background', res.bgColor, 'important');
                     
-                    // ★物置に保存
+                    // 物置を更新
                     localStorage.setItem('cached_system_title', res.title);
+                    localStorage.setItem('cached_system_desc', res.description); // ★保存
                     localStorage.setItem('cached_bg_color', res.bgColor);
 
                     if (res.logoUrl && res.logoUrl !== "none") {
@@ -71,7 +81,6 @@
                 });
                 const res = await response.json();
                 if (res.success) {
-                    msgDiv.style.color = "#28a745"; msgDiv.innerText = "ログイン成功！";
                     window.location.href = res.redirectUrl;
                 } else {
                     msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
