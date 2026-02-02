@@ -9,7 +9,7 @@
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
         <div id="logo-container" style="margin-bottom: 20px;"></div>
-        <h3><span id="system-name">認証システム</span> - 新規登録</h3>
+        <h3><span id="system-name">読み込み中...</span> - 新規登録</h3>
         <p class="description">必要事項を入力して申請してください。</p>
         <div class="input-group"><input type="text" id="userName" placeholder="お名前" required></div>
         <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
@@ -20,7 +20,6 @@
     </div>
     <script src="config.js"></script>
     <script>
-      // 爆速反映
       const cachedTitle = localStorage.getItem('cached_system_title');
       const cachedBg = localStorage.getItem('cached_bg_color');
       const cachedLogo = localStorage.getItem('cached_logo_url');
@@ -35,8 +34,10 @@
               if (res.success) {
                   document.getElementById('system-name').innerText = res.title;
                   document.body.style.setProperty('background', res.bgColor, 'important');
-                  localStorage.setItem('cached_system_title', res.title);
-                  localStorage.setItem('cached_bg_color', res.bgColor);
+                  const logoContainer = document.getElementById('logo-container');
+                  if (res.logoUrl && res.logoUrl !== "none") {
+                      logoContainer.innerHTML = `<img src="${res.logoUrl}" style="max-width: 120px; height: auto;">`;
+                  } else { logoContainer.innerHTML = ""; }
               }
           } catch (err) {}
       };

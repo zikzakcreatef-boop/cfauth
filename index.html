@@ -10,7 +10,6 @@
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            
             <h2 id="system-title">Loading...</h2>
             <p id="system-description" class="description" style="margin-top: -10px; margin-bottom: 20px; min-height: 1.2em;"></p>
             
@@ -24,12 +23,11 @@
             </div>
         </div>
     </div>
-
     <script src="config.js"></script>
     <script>
         // 物置（localStorage）から即時復元
         const cachedTitle = localStorage.getItem('cached_system_title');
-        const cachedDesc = localStorage.getItem('cached_system_desc'); // ★
+        const cachedDesc = localStorage.getItem('cached_system_desc');
         const cachedBg = localStorage.getItem('cached_bg_color');
         const cachedLogo = localStorage.getItem('cached_logo_url');
 
@@ -47,19 +45,23 @@
                 const res = await response.json();
                 if (res.success) {
                     document.getElementById('system-title').innerText = res.title;
-                    document.getElementById('system-description').innerText = res.description; // ★反映
+                    document.getElementById('system-description').innerText = res.description;
                     document.title = res.title + " - ログイン";
-                    
                     if (res.bgColor) document.body.style.setProperty('background', res.bgColor, 'important');
                     
                     // 物置を更新
                     localStorage.setItem('cached_system_title', res.title);
-                    localStorage.setItem('cached_system_desc', res.description); // ★保存
+                    localStorage.setItem('cached_system_desc', res.description);
                     localStorage.setItem('cached_bg_color', res.bgColor);
 
-                    if (res.logoUrl && res.logoUrl !== "none") {
-                        document.getElementById('logo-container').innerHTML = `<img src="${res.logoUrl}" style="max-width: 120px; height: auto;">`;
+                    // ロゴの判定：noneなら消去、あれば表示
+                    const logoContainer = document.getElementById('logo-container');
+                    if (res.logoUrl && res.logoUrl !== "none" && res.logoUrl !== "") {
+                        logoContainer.innerHTML = `<img src="${res.logoUrl}" style="max-width: 120px; height: auto;">`;
                         localStorage.setItem('cached_logo_url', res.logoUrl);
+                    } else {
+                        logoContainer.innerHTML = "";
+                        localStorage.removeItem('cached_logo_url');
                     }
                 }
             } catch (err) {
