@@ -3,75 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新規登録 - CF認証システム</title>
+    <title>新規登録</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
-        <h3>Create Account</h3>
+        <div id="logo-container" style="margin-bottom: 20px;"></div>
+        <h3><span id="system-name">認証システム</span> - 新規登録</h3>
         <p class="description">必要事項を入力して申請してください。</p>
-        <div class="input-group">
-            <input type="text" id="userName" placeholder="お名前" required>
-        </div>
-        <div class="input-group">
-            <input type="email" id="email" placeholder="メールアドレス" required>
-        </div>
-        <div class="input-group">
-            <input type="password" id="password" placeholder="パスワード" required>
-        </div>
+        <div class="input-group"><input type="text" id="userName" placeholder="お名前" required></div>
+        <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
+        <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
         <button id="regBtn" class="btn btn-success" onclick="register()">アカウント作成申請</button>
         <div id="message" class="status-message"></div>
-        <div class="footer-links">
-            <a href="index.html" class="back-link">ログイン画面に戻る</a>
-        </div>
+        <div class="footer-links"><a href="index.html" class="back-link">ログイン画面に戻る</a></div>
     </div>
-
     <script src="config.js"></script>
     <script>
+      // 爆速反映
+      const cachedTitle = localStorage.getItem('cached_system_title');
+      const cachedBg = localStorage.getItem('cached_bg_color');
+      const cachedLogo = localStorage.getItem('cached_logo_url');
+      if(cachedTitle) { document.getElementById('system-name').innerText = cachedTitle; document.title = cachedTitle + " - 新規登録"; }
+      if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
+      if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
+
+      window.onload = async function() {
+          try {
+              const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) });
+              const res = await response.json();
+              if (res.success) {
+                  document.getElementById('system-name').innerText = res.title;
+                  document.body.style.setProperty('background', res.bgColor, 'important');
+                  localStorage.setItem('cached_system_title', res.title);
+                  localStorage.setItem('cached_bg_color', res.bgColor);
+              }
+          } catch (err) {}
+      };
+
       async function register() {
         const name = document.getElementById('userName').value;
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const msgDiv = document.getElementById('message');
-        const regBtn = document.getElementById('regBtn');
-
-        if (!name || !email || !password) {
-          msgDiv.style.color = "#d93025";
-          msgDiv.innerText = "全部入力してください！";
-          return;
-        }
-
-        regBtn.disabled = true;
-        msgDiv.style.color = "#007bff";
-        msgDiv.innerText = "登録処理中...";
-
+        if (!name || !email || !password) { msgDiv.innerText = "入力してください"; return; }
         try {
-          const response = await fetch(GAS_URL, {
-            method: "POST",
-            body: JSON.stringify({
-              action: "signup",
-              apiKey: API_KEY, // セキュリティゲートを通過
-              userId: email,
-              password: password,
-              name: name
-            })
-          });
+          const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "signup", apiKey: API_KEY, userId: email, password: password, name: name }) });
           const res = await response.json();
-          if (res.success) {
-            msgDiv.style.color = "#28a745";
-            msgDiv.innerText = "メールを確認してください";
-            alert(res.message);
-            window.location.href = "index.html";
-          } else {
-            msgDiv.style.color = "#d93025";
-            msgDiv.innerText = res.message;
-            regBtn.disabled = false;
-          }
-        } catch (error) {
-          msgDiv.style.color = "#d93025";
-          msgDiv.innerText = "エラーが発生しました。";
-          regBtn.disabled = false;
-        }
+          if (res.success) { alert(res.message); window.location.href = "index.html"; }
+          else { msgDiv.innerText = res.message; }
+        } catch (error) { msgDiv.innerText = "エラー発生"; }
       }
     </script>
 </body>

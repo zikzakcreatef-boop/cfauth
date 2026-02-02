@@ -3,22 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>読み込み中... - CF認証システム</title>
+    <title>読み込み中... - 認証システム</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            
             <h2 id="system-title">Loading...</h2>
-            
-            <div class="input-group">
-                <input type="email" id="email" placeholder="メールアドレス" required>
-            </div>
-            <div class="input-group">
-                <input type="password" id="password" placeholder="パスワード" required>
-            </div>
+            <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
+            <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
             <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
             <div id="message" class="status-message"></div>
             <div class="footer-links">
@@ -27,37 +21,35 @@
             </div>
         </div>
     </div>
-
     <script src="config.js"></script>
     <script>
-        // ページ読み込み時にUI設定を取得して反映
+        // 物置から即時復元（2回目以降の訪問用）
+        const cachedTitle = localStorage.getItem('cached_system_title');
+        const cachedBg = localStorage.getItem('cached_bg_color');
+        const cachedLogo = localStorage.getItem('cached_logo_url');
+        if(cachedTitle) { document.getElementById('system-title').innerText = cachedTitle; document.title = cachedTitle; }
+        if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
+        if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
+
         window.onload = async function() {
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ 
-                        action: "get_ui_config", 
-                        apiKey: API_KEY 
-                    })
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // タイトル反映
                     document.getElementById('system-title').innerText = res.title;
                     document.title = res.title + " - ログイン";
+                    if (res.bgColor) document.body.style.setProperty('background', res.bgColor, 'important');
+                    
+                    // ★物置に保存
+                    localStorage.setItem('cached_system_title', res.title);
+                    localStorage.setItem('cached_bg_color', res.bgColor);
 
-                    // 背景色反映：CSSに勝てるよう !important 指定で適用
-                    if (res.bgColor) {
-                        document.body.style.setProperty('background', res.bgColor, 'important');
-                    }
-
-                    // ロゴ反映
                     if (res.logoUrl && res.logoUrl !== "none") {
-                        const img = document.createElement('img');
-                        img.src = res.logoUrl;
-                        img.style.maxWidth = "120px";
-                        img.style.height = "auto";
-                        document.getElementById('logo-container').appendChild(img);
+                        document.getElementById('logo-container').innerHTML = `<img src="${res.logoUrl}" style="max-width: 120px; height: auto;">`;
+                        localStorage.setItem('cached_logo_url', res.logoUrl);
                     }
                 }
             } catch (err) {
@@ -65,48 +57,26 @@
             }
         };
 
-        // ログイン関数
         async function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const msgDiv = document.getElementById('message');
             const btn = document.getElementById('loginBtn');
-
-            if (!email || !password) {
-                msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "入力してください。";
-                return;
-            }
-
-            btn.disabled = true;
-            msgDiv.style.color = "#007bff";
-            msgDiv.innerText = "認証中...";
-
+            if (!email || !password) { msgDiv.style.color = "#d93025"; msgDiv.innerText = "入力してください。"; return; }
+            btn.disabled = true; msgDiv.style.color = "#007bff"; msgDiv.innerText = "認証中...";
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ 
-                        action: "login", 
-                        apiKey: API_KEY,
-                        userId: email, 
-                        password: password 
-                    })
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password })
                 });
                 const res = await response.json();
                 if (res.success) {
-                    msgDiv.style.color = "#28a745";
-                    msgDiv.innerText = "ログイン成功！転送します...";
+                    msgDiv.style.color = "#28a745"; msgDiv.innerText = "ログイン成功！";
                     window.location.href = res.redirectUrl;
                 } else {
-                    msgDiv.style.color = "#d93025";
-                    msgDiv.innerText = res.message;
-                    btn.disabled = false;
+                    msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
                 }
-            } catch (err) {
-                msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "通信エラーが発生しました。";
-                btn.disabled = false;
-            }
+            } catch (err) { msgDiv.innerText = "通信エラー"; btn.disabled = false; }
         }
     </script>
 </body>

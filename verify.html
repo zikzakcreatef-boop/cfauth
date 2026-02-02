@@ -3,29 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>認証完了 - CF認証システム</title>
+    <title>認証完了</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body id="main-body">
     <div class="container">
-        <h3>Verification Complete</h3>
+        <div id="logo-container" style="margin-bottom: 20px;"></div>
+        <h3><span id="system-name">認証システム</span></h3>
         <p class="description">メール認証が正常に完了しました！</p>
-        
-        <div class="status-box success">
-            <p>管理者があなたのアカウントを承認するまで、今しばらくお待ちください。</p>
-        </div>
-
-        <div class="footer-links">
-            <p>3秒後にログイン画面へ戻ります...</p>
-            <a href="index.html" class="back-link">戻らない場合はこちらをクリック</a>
-        </div>
+        <div class="status-box success"><p>承認までしばらくお待ちください。</p></div>
+        <div class="footer-links"><p>3秒後に戻ります...</p></div>
     </div>
-
     <script>
-        // 3秒後に index.html へリダイレクト
-        setTimeout(() => {
-            window.location.href = "index.html";
-        }, 3000);
+        const cachedTitle = localStorage.getItem('cached_system_title');
+        const cachedBg = localStorage.getItem('cached_bg_color');
+        if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
+        if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
+        setTimeout(() => { window.location.href = "index.html"; }, 3000);
     </script>
 </body>
 </html>
