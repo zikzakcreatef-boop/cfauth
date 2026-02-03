@@ -5,7 +5,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh; /* heightからmin-heightに変更（中身が増えても伸びるように） */
     margin: 0;
 }
 
@@ -14,16 +14,21 @@ body {
     width: 100%;
     max-width: 400px;
     padding: 20px;
+    box-sizing: border-box;
 }
 
-/* 3. 白いカード（ここが全画面共通のダイアログ正体） */
-.form-box, .container {
+/* 3. 白いカード（メインダイアログ） */
+.form-box {
     background: white;
     padding: 40px;
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     text-align: center;
     box-sizing: border-box;
+    width: 100%;
+    /* 長い英単語などが突き抜けないようにガード */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 /* index.htmlなどで二重に枠が出ないように調整 */
@@ -32,16 +37,23 @@ body {
     padding: 0;
 }
 
-/* 4. 見出しと説明文 */
+/* 4. 見出しと説明文（折り返し対応） */
 h2, h3 {
     margin-top: 0;
+    margin-bottom: 15px;
     color: #1a1a1a;
+    line-height: 1.4;       /* 行間を広げて折り返し時に読みやすく */
+    white-space: normal;    /* 折り返しを許可 */
+    overflow-wrap: break-word;
+    font-size: 22px;        /* タイトルサイズを適切に設定 */
 }
 
 .description {
     font-size: 14px;
     color: #666;
     margin-bottom: 24px;
+    line-height: 1.6;
+    white-space: pre-wrap;  /* 改行コードを反映しつつ折り返し */
 }
 
 /* 5. 入力フォーム */
@@ -64,7 +76,7 @@ input:focus {
     outline: none;
 }
 
-/* 6. ボタン（形状・サイズを完全固定） */
+/* 6. ボタン */
 .btn, .login-btn {
     width: 100%;
     padding: 14px;
@@ -72,37 +84,45 @@ input:focus {
     color: white;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
     font-size: 16px;
     font-weight: bold;
-    display: block;
-    transition: background 0.2s;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
 }
 
-.btn:hover, .login-btn:hover {
+.btn:hover {
     background-color: #0056b3;
 }
 
-/* 成功時（緑）のボタン */
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 .btn-success {
-    background-color: #28a745 !important;
+    background-color: #28a745;
 }
 
 .btn-success:hover {
-    background-color: #218838 !important;
+    background-color: #218838;
 }
 
-/* 7. メッセージとリンク */
+/* 7. ステータスメッセージ */
 .status-message {
-    margin-top: 16px;
+    margin-top: 15px;
     font-size: 14px;
-    font-weight: bold;
     min-height: 1.5em;
 }
 
+/* 8. フッターリンク */
 .footer-links {
     margin-top: 24px;
-    font-size: 14px;
+    font-size: 13px;
+    color: #666;
 }
 
 .back-link {
@@ -112,4 +132,10 @@ input:focus {
 
 .back-link:hover {
     text-decoration: underline;
+}
+
+/* 未読セクション内のリスト調整 */
+#alert-list div {
+    text-align: left;
+    transition: background-color 0.3s;
 }
