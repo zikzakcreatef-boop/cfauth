@@ -5,6 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* 追加のスタイル：アコーディオン用 */
+        #alert-list {
+            display: none;
+            text-align: left;
+            margin: 15px 0;
+            max-height: 250px;
+            overflow-y: auto;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+        .unread-badge {
+            display: inline-block;
+            background: #f8d7da;
+            color: #721c24;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+    </style>
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
@@ -20,9 +42,14 @@
             </div>
             
             <div id="unread-section" style="display: none;">
-                <h3 id="unread-status-title" style="color: #d93025; font-size: 18px;">⚠️ 未読の重要書類があります</h3>
-                <div id="alert-list" style="text-align: left; margin: 20px 0; max-height: 300px; overflow-y: auto;"></div>
-                <button id="continueBtn" class="btn" style="background-color: #6c757d;">先に進む</button>
+                <div id="completion-msg" style="color: #28a745; font-weight: bold; margin-bottom: 15px;"></div>
+                
+                <div id="unread-toggle" style="display:none; cursor:pointer; color:#007bff; font-size:14px; margin-bottom:15px; text-decoration:underline;">
+                    他の未読書類を確認する <span id="unread-count-badge" class="unread-badge">0</span>
+                </div>
+                
+                <div id="alert-list"></div>
+                <button id="continueBtn" class="btn" style="background-color: #28a745;">メインページへ進む</button>
             </div>
 
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
@@ -37,7 +64,7 @@
         let unreadAlertsCache = [];
         const clickedIds = new Set();
         let redirectUrlCache = "";
-        let loggedInUserId = ""; // ユーザーIDを保持
+        let loggedInUserId = "";
 
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -78,74 +105,65 @@
                     document.getElementById('system-description').style.display = "none";
                     msgDiv.innerText = "";
 
-                    if (unreadAlertsCache.length > 0) { renderUnreadList(); }
-                    else { showFinalCompletion(); }
+                    showResultUI();
                 } else {
                     msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
                 }
             } catch (err) { msgDiv.innerText = "エラー発生"; btn.disabled = false; }
         }
 
+        function showResultUI() {
+            document.getElementById('unread-section').style.display = "block";
+            document.getElementById('completion-msg').innerText = "✅ 閲覧確認が完了しました";
+            
+            const toggle = document.getElementById('unread-toggle');
+            if (unreadAlertsCache.length > 0) {
+                toggle.style.display = "block";
+                document.getElementById('unread-count-badge').innerText = unreadAlertsCache.length;
+                renderUnreadList();
+                
+                toggle.onclick = () => {
+                    const list = document.getElementById('alert-list');
+                    list.style.display = (list.style.display === 'block') ? 'none' : 'block';
+                    toggle.innerText = (list.style.display === 'block') ? "未読リストを閉じる" : `他の未読書類を確認する (${unreadAlertsCache.length})`;
+                };
+            }
+
+            document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
+        }
+
         function renderUnreadList() {
-            const unreadSection = document.getElementById('unread-section');
             const listDiv = document.getElementById('alert-list');
-            unreadSection.style.display = "block";
             listDiv.innerHTML = "";
 
             unreadAlertsCache.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
-                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fff; border-radius:8px; border: 1px solid #eee;";
+                div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
                 div.innerHTML = `
                     <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="font-size:12px; color:#666; margin:4px 0;">${item.description || ''}</div>
-                    <div style="color:#007bff; font-size:13px; font-weight:bold; cursor:pointer; text-decoration:underline; margin-top:5px;" 
+                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
                          onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">
                        ▶ 内容を確認する
                     </div>
                 `;
                 listDiv.appendChild(div);
             });
-
-            document.getElementById('continueBtn').onclick = () => {
-                if (clickedIds.size >= unreadAlertsCache.length) { window.location.href = redirectUrlCache; }
-                else { alert("全ての書類を確認してください。"); }
-            };
         }
 
         async function handleLinkClick(event, url, index, id) {
-            if(event) { event.preventDefault(); }
+            if(event) event.preventDefault();
             window.open(url, '_blank');
 
-            // GASに閲覧記録を飛ばす (バックグラウンドで実行)
+            // GASへ記録送信
             fetch(GAS_URL, {
                 method: "POST",
                 body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
-            }).catch(e => console.error("Log error:", e));
+            });
 
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
-
-            if (clickedIds.size >= unreadAlertsCache.length) {
-                const contBtn = document.getElementById('continueBtn');
-                contBtn.style.backgroundColor = "#28a745";
-                contBtn.innerText = "全ての確認が完了しました（次へ）";
-                document.getElementById('message').style.color = "#28a745";
-                document.getElementById('message').innerText = "✅ 証跡を更新しました";
-            }
-        }
-
-        function showFinalCompletion() {
-            document.getElementById('unread-section').style.display = "block";
-            document.getElementById('unread-status-title').style.display = "none";
-            const msgDiv = document.getElementById('message');
-            msgDiv.style.color = "#28a745";
-            msgDiv.innerHTML = "✅ 閲覧確認が完了しました";
-            const contBtn = document.getElementById('continueBtn');
-            contBtn.style.backgroundColor = "#28a745";
-            contBtn.innerText = "メインページへ進む";
-            contBtn.onclick = () => { window.location.href = redirectUrlCache; };
         }
     </script>
 </body>
