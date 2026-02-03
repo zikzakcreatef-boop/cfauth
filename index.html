@@ -34,9 +34,9 @@
     </div>
     <script src="config.js"></script>
     <script>
-        // グローバル変数でリストを保持
-        let currentUnreadCount = 0;
+        let unreadAlertsCache = []; // 未読リストを保持
         const clickedIds = new Set();
+        let redirectUrlCache = "";
 
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -60,94 +60,112 @@
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('contentId');
 
-            btn.disabled = true; msgDiv.style.color = "#007bff"; msgDiv.innerText = "認証中...";
+            if (!email || !password) return;
+
+            btn.disabled = true;
+            msgDiv.style.color = "#007bff";
+            msgDiv.innerText = "認証中...";
+
             try {
                 const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password, contentId: contentId }) });
                 const res = await response.json();
 
                 if (res.success) {
-                    const data = res.data;
-                    // 画面を切り替え
+                    unreadAlertsCache = res.data.unreadAlerts || [];
+                    redirectUrlCache = res.data.redirectUrl;
+
+                    // UI切り替え
                     document.getElementById('login-fields').style.display = "none";
                     document.getElementById('footer-links').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
                     msgDiv.innerText = "";
 
-                    if (data.unreadAlerts && data.unreadAlerts.length > 0) {
-                        // 未読がある場合、リストを表示
-                        currentUnreadCount = data.unreadAlerts.length;
-                        showUnreadUI(data.unreadAlerts, data.redirectUrl);
+                    if (unreadAlertsCache.length > 0) {
+                        renderUnreadList();
                     } else {
-                        // 未読がない場合、即完了状態
-                        showCompletionUI(data.redirectUrl);
+                        showFinalCompletion();
                     }
                 } else {
-                    msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
+                    msgDiv.style.color = "#d93025";
+                    msgDiv.innerText = res.message;
+                    btn.disabled = false;
                 }
-            } catch (err) { msgDiv.innerText = "通信エラー"; btn.disabled = false; }
+            } catch (err) {
+                msgDiv.innerText = "通信エラーが発生しました";
+                btn.disabled = false;
+            }
         }
 
-        function showUnreadUI(alerts, redirectUrl) {
+        function renderUnreadList() {
             const unreadSection = document.getElementById('unread-section');
             const listDiv = document.getElementById('alert-list');
             unreadSection.style.display = "block";
             listDiv.innerHTML = "";
 
-            alerts.forEach((item, index) => {
+            unreadAlertsCache.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
-                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fff; border-radius:8px;";
+                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fff; border-radius:8px; border: 1px solid #eee;";
+                
+                // aタグの代わりにonclickイベントで制御 (リロード防止)
                 div.innerHTML = `
                     <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="font-size:12px; color:#666; margin:4px 0;">${item.description}</div>
-                    <a href="${item.url}" target="_blank" id="link-${index}"
-                       style="font-size:13px; color:#007bff; text-decoration:none; font-weight:bold; border: 1px solid #007bff; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-top:5px;"
-                       onclick="markAsRead('${index}', '${item.id}')">
+                    <div style="font-size:12px; color:#666; margin:4px 0;">${item.description || ''}</div>
+                    <div style="color:#007bff; font-size:13px; font-weight:bold; cursor:pointer; text-decoration:underline; margin-top:5px;" 
+                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">
                        ▶ 内容を確認する
-                    </a>
+                    </div>
                 `;
                 listDiv.appendChild(div);
             });
 
-            const contBtn = document.getElementById('continueBtn');
-            contBtn.onclick = () => { window.location.href = redirectUrl; };
+            document.getElementById('continueBtn').onclick = () => {
+                if (clickedIds.size >= unreadAlertsCache.length) {
+                    window.location.href = redirectUrlCache;
+                } else {
+                    alert("全ての書類を確認してください。");
+                }
+            };
         }
 
-        function markAsRead(idx, id) {
-            // クリック済みを記録（画面遷移させない）
-            clickedIds.add(id);
+        function handleLinkClick(event, url, index, id) {
+            // イベントの伝播とデフォルト動作を完全に阻止
+            if(event) { event.preventDefault(); event.stopPropagation(); }
             
-            const targetDiv = document.getElementById(`item-${idx}`);
-            const statusIcon = document.getElementById(`status-icon-${idx}`);
-            const linkObj = document.getElementById(`link-${idx}`);
-            const contBtn = document.getElementById('continueBtn');
-            const msgDiv = document.getElementById('message');
+            // 別タブで開く
+            window.open(url, '_blank');
 
+            // 画面上のステータスを更新
+            clickedIds.add(id);
+            const targetDiv = document.getElementById(`item-${index}`);
+            const statusIcon = document.getElementById(`status-icon-${index}`);
+            
             targetDiv.style.backgroundColor = "#f0fdf4";
+            targetDiv.style.borderColor = "#bbf7d0";
             statusIcon.innerText = "✅";
-            linkObj.innerText = "確認済み";
-            linkObj.style.color = "#28a745";
-            linkObj.style.borderColor = "#28a745";
 
-            // 全てクリックされたかチェック
-            if (clickedIds.size >= currentUnreadCount) {
+            // 全てクリック完了時の演出
+            if (clickedIds.size >= unreadAlertsCache.length) {
+                const contBtn = document.getElementById('continueBtn');
                 contBtn.style.backgroundColor = "#28a745";
                 contBtn.innerText = "全ての確認が完了しました（次へ）";
+                const msgDiv = document.getElementById('message');
                 msgDiv.style.color = "#28a745";
                 msgDiv.innerHTML = "✅ 証跡が記録されました";
             }
         }
 
-        function showCompletionUI(redirectUrl) {
+        function showFinalCompletion() {
+            document.getElementById('unread-section').style.display = "block";
+            document.getElementById('unread-status-title').style.display = "none";
             const msgDiv = document.getElementById('message');
             msgDiv.style.color = "#28a745";
             msgDiv.innerHTML = "✅ 認証および閲覧確認が完了しました";
-            document.getElementById('unread-section').style.display = "block";
-            document.getElementById('unread-status-title').style.display = "none";
+            
             const contBtn = document.getElementById('continueBtn');
             contBtn.style.backgroundColor = "#28a745";
             contBtn.innerText = "メインページへ進む";
-            contBtn.onclick = () => { window.location.href = redirectUrl; };
+            contBtn.onclick = () => { window.location.href = redirectUrlCache; };
         }
     </script>
 </body>
