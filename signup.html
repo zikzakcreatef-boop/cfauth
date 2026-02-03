@@ -12,9 +12,9 @@
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             
             <h2 id="system-display-name">新規利用申請</h2>
-            <p class="description">必要事項を入力して申請してください。<br>管理者の承認後、ログイン可能になります。</p>
             
-            <div id="signup-fields">
+            <div id="signup-form-area">
+                <p class="description">必要事項を入力して申請してください。</p>
                 <div class="input-group">
                     <input type="text" id="userName" placeholder="お名前" required>
                 </div>
@@ -27,6 +27,17 @@
                 <button id="regBtn" class="btn btn-success" onclick="register()">アカウント作成申請</button>
             </div>
 
+            <div id="success-area" style="display: none;">
+                <div style="font-size: 48px; margin-bottom: 10px;">📩</div>
+                <h3 style="color: #28a745;">メールを送信しました</h3>
+                <p class="description" style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    入力されたアドレス宛に認証メールを送信しました。<br><br>
+                    <strong>1. メール内のリンクをタップ</strong><br>
+                    <strong>2. 管理者の承認を待つ</strong><br><br>
+                    の手順で進めてください。
+                </p>
+            </div>
+
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
             
             <div class="footer-links">
@@ -37,7 +48,7 @@
 
     <script src="config.js"></script>
     <script>
-      // 画面読み込み時にシステム設定（背景色など）だけ取得する
+      // ページ読み込み時のUI設定
       window.onload = async function() {
           try {
               const response = await fetch(GAS_URL, { 
@@ -46,9 +57,7 @@
               });
               const res = await response.json();
               if (res.success) {
-                  // 背景色を適用
                   if (res.data.bgColor) document.body.style.background = res.data.bgColor;
-                  // ロゴがあれば表示
                   if (res.data.logoUrl && res.data.logoUrl !== "none") {
                       document.getElementById('logo-container').innerHTML = `<img src="${res.data.logoUrl}" style="max-width: 120px; height: auto;">`;
                   }
@@ -62,6 +71,8 @@
         const password = document.getElementById('password').value;
         const msgDiv = document.getElementById('message');
         const btn = document.getElementById('regBtn');
+        const formArea = document.getElementById('signup-form-area');
+        const successArea = document.getElementById('success-area');
 
         if (!name || !email || !password) {
             msgDiv.style.color = "#d93025";
@@ -70,7 +81,8 @@
         }
 
         btn.disabled = true;
-        msgDiv.innerText = "申請処理中...";
+        btn.innerText = "送信中...";
+        msgDiv.innerText = "";
 
         try {
           const response = await fetch(GAS_URL, { 
@@ -86,18 +98,20 @@
           const res = await response.json();
 
           if (res.success) {
-              msgDiv.style.color = "#28a745";
-              msgDiv.innerText = "申請が完了しました。管理者の承認をお待ちください。";
-              document.getElementById('signup-fields').style.display = "none";
+              // フォームを消して、成功メッセージを表示
+              formArea.style.display = "none";
+              successArea.style.display = "block";
           } else {
               msgDiv.style.color = "#d93025";
               msgDiv.innerText = res.message;
               btn.disabled = false;
+              btn.innerText = "アカウント作成申請";
           }
         } catch (error) {
             msgDiv.style.color = "#d93025";
-            msgDiv.innerText = "エラーが発生しました。";
+            msgDiv.innerText = "通信エラーが発生しました。";
             btn.disabled = false;
+            btn.innerText = "アカウント作成申請";
         }
       }
     </script>
