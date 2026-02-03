@@ -28,14 +28,17 @@
             </div>
 
             <div id="success-area" style="display: none;">
-                <div style="font-size: 48px; margin-bottom: 10px;">📩</div>
-                <h3 style="color: #28a745;">メールを送信しました</h3>
-                <p class="description" style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                    入力されたアドレス宛に認証メールを送信しました。<br><br>
-                    <strong>1. メール内のリンクをタップ</strong><br>
-                    <strong>2. 管理者の承認を待つ</strong><br><br>
+                <div style="font-size: 64px; margin-bottom: 10px;">📩</div>
+                <h3 style="color: #28a745; margin-bottom: 20px;">メールを送信しました</h3>
+                
+                <div class="description" style="background: #f8f9fa; padding: 25px; border-radius: 12px; line-height: 1.8; text-align: center;">
+                    入力されたアドレス宛に<br>認証メールを送信しました。<br><br>
+                    <div style="text-align: left; display: inline-block; font-weight: bold;">
+                        1. メール内のリンクをタップ<br>
+                        2. 管理者の承認を待つ
+                    </div><br><br>
                     の手順で進めてください。
-                </p>
+                </div>
             </div>
 
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
@@ -48,7 +51,7 @@
 
     <script src="config.js"></script>
     <script>
-      // ページ読み込み時のUI設定
+      // UI設定の取得
       window.onload = async function() {
           try {
               const response = await fetch(GAS_URL, { 
@@ -98,9 +101,9 @@
           const res = await response.json();
 
           if (res.success) {
-              // フォームを消して、成功メッセージを表示
               formArea.style.display = "none";
               successArea.style.display = "block";
+              msgDiv.innerText = "";
           } else {
               msgDiv.style.color = "#d93025";
               msgDiv.innerText = res.message;
