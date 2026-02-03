@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>認証 - CF認証システム</title>
+    <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
@@ -27,13 +27,12 @@
 
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
             <div class="footer-links" id="footer-links">
-                <a href="signup.html" class="back-link">新規申請</a> | <a href="forgot-password.html" class="back-link">パスワード忘れ</a>
+                <a href="signup.html" class="back-link">新規申請</a> | <a href="forgot-password.html" class="back-link">パスワードを忘れた</a>
             </div>
         </div>
     </div>
     <script src="config.js"></script>
     <script>
-        // UI初期化
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('contentId');
@@ -56,23 +55,26 @@
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('contentId');
 
-            btn.disabled = true; msgDiv.innerText = "認証中...";
+            btn.disabled = true; msgDiv.style.color = "#007bff"; msgDiv.innerText = "認証中...";
             try {
                 const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password, contentId: contentId }) });
                 const res = await response.json();
+
                 if (res.success) {
                     const data = res.data;
+                    // ログイン入力を隠す
                     document.getElementById('login-fields').style.display = "none";
                     document.getElementById('footer-links').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
 
                     if (data.unreadAlerts && data.unreadAlerts.length > 0) {
+                        // 未読がある場合
                         showUnreadUI(data.unreadAlerts, data.redirectUrl);
                     } else {
+                        // 未読がない場合
                         msgDiv.style.color = "#28a745";
-                        msgDiv.innerHTML = "✅ 認証完了";
-                        const unreadSection = document.getElementById('unread-section');
-                        unreadSection.style.display = "block";
+                        msgDiv.innerHTML = "✅ 認証および閲覧確認が完了しました";
+                        document.getElementById('unread-section').style.display = "block";
                         document.getElementById('unread-status-title').style.display = "none";
                         const contBtn = document.getElementById('continueBtn');
                         contBtn.style.backgroundColor = "#28a745";
@@ -94,26 +96,41 @@
             const clickedItems = new Set();
 
             alerts.forEach((item, index) => {
+                const isOverdue = item.status === "OVERDUE";
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
-                div.style.cssText = "padding:10px; border-bottom:1px solid #eee; background:#fff;";
+                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; border-radius:8px; background:#fff; border: 1px solid #eee;";
                 div.innerHTML = `
-                    <div style="font-weight:bold;"><span id="icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="font-size:12px; color:#666;">${item.description}</div>
-                    <a href="${item.url}" target="_blank" style="color:#007bff; font-size:13px;" onclick="markAsRead('${index}', '${item.id}')">▶ 内容を確認する</a>
+                    <div style="font-weight:bold; color:${isOverdue ? '#d93025' : '#333'};">
+                        <span id="status-icon-${index}">⭕</span> ${isOverdue ? '[期限切れ] ' : ''}${item.title}
+                    </div>
+                    <div style="font-size:12px; color:#666; margin:4px 0;">${item.description}</div>
+                    <a href="${item.url}" target="_blank" id="link-${index}"
+                       style="font-size:13px; color:#007bff; text-decoration:none; font-weight:bold; border: 1px solid #007bff; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-top:5px;"
+                       onclick="markAsRead('${index}', '${item.id}')">
+                       ▶ 内容を確認する
+                    </a>
                 `;
                 listDiv.appendChild(div);
             });
 
             window.markAsRead = (idx, id) => {
-                document.getElementById(`item-${idx}`).style.background = "#f0fdf4";
-                document.getElementById(`icon-${idx}`).innerText = "✅";
+                const targetDiv = document.getElementById(`item-${idx}`);
+                const statusIcon = document.getElementById(`status-icon-${idx}`);
+                const linkObj = document.getElementById(`link-${idx}`);
+                targetDiv.style.backgroundColor = "#f0fdf4";
+                targetDiv.style.borderColor = "#bbf7d0";
+                statusIcon.innerText = "✅";
+                linkObj.innerText = "確認済み";
+                linkObj.style.color = "#28a745";
+                linkObj.style.borderColor = "#28a745";
                 clickedItems.add(id);
+
                 if (clickedItems.size >= alerts.length) {
                     contBtn.style.backgroundColor = "#28a745";
                     contBtn.innerText = "全ての確認が完了しました（次へ）";
                     document.getElementById('message').style.color = "#28a745";
-                    document.getElementById('message').innerText = "✅ 証跡を記録しました";
+                    document.getElementById('message').innerHTML = "✅ 証跡が記録されました";
                 }
             };
             contBtn.onclick = () => { window.location.href = redirectUrl; };
