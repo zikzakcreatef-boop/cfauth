@@ -2,23 +2,73 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>認証完了</title>
+    <title>認証完了 - CF認証システム</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body id="main-body">
     <div class="container">
-        <div id="logo-container" style="margin-bottom: 20px;"></div>
-        <h3><span id="system-name">CF認証システム</span></h3>
-        <p class="description">メール認証が正常に完了しました！</p>
-        <div class="status-box success"><p>承認までしばらくお待ちください。</p></div>
-        <div class="footer-links"><p>3秒後に戻ります...</p></div>
+        <div class="form-box">
+            <div id="logo-container" style="margin-bottom: 20px;"></div>
+            <h3><span id="system-name">CF認証システム</span></h3>
+            <p id="verify-msg" class="description">メール認証を確認しています...</p>
+            
+            <div id="status-display" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
+            
+            <div class="footer-links">
+                <p id="redirect-msg" style="display:none;">5秒後にログイン画面へ戻ります...</p>
+                <a href="index.html" class="back-link">ログイン画面へ戻る</a>
+            </div>
+        </div>
     </div>
+
+    <script src="config.js"></script>
     <script>
-        const cachedTitle = localStorage.getItem('cached_system_title');
-        const cachedBg = localStorage.getItem('cached_bg_color');
-        if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
-        if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
-        setTimeout(() => { window.location.href = "index.html"; }, 3000);
+        window.onload = async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const email = urlParams.get('email');
+            const name = urlParams.get('name');
+            const pw = urlParams.get('pw');
+            const token = urlParams.get('token'); // 不正登録防止用
+
+            const msgDiv = document.getElementById('status-display');
+            const verifyMsg = document.getElementById('verify-msg');
+
+            if (!email || !token) {
+                msgDiv.style.color = "#d93025";
+                msgDiv.innerText = "無効な認証URLです。";
+                return;
+            }
+
+            try {
+                // GASに「メール認証が済んだから登録を確定させて！」と送る
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "complete_registration",
+                        apiKey: API_KEY,
+                        userId: email,
+                        userName: name,
+                        password: pw,
+                        token: token
+                    })
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    verifyMsg.innerText = "メール認証が正常に完了しました！";
+                    msgDiv.style.color = "#28a745";
+                    msgDiv.innerText = "管理者の承認をお待ちください。";
+                    document.getElementById('redirect-msg').style.display = "block";
+                    setTimeout(() => { window.location.href = "index.html"; }, 5000);
+                } else {
+                    msgDiv.style.color = "#d93025";
+                    msgDiv.innerText = res.message;
+                }
+            } catch (err) {
+                msgDiv.style.color = "#d93025";
+                msgDiv.innerText = "エラーが発生しました。再度お試しください。";
+            }
+        };
     </script>
 </body>
 </html>
