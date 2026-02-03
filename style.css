@@ -1,18 +1,21 @@
 /* 1. 全体の土台 */
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f0f2f5; /* 薄いグレーの背景 */
+    background-color: #f0f2f5; 
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh; /* heightからmin-heightに変更（中身が増えても伸びるように） */
+    /* height: 100vh; を廃止し、最低高さを指定。中身が増えたら伸びるように */
+    min-height: 100vh; 
     margin: 0;
+    padding: 20px 0; /* 上下に少し余白を持たせる */
+    box-sizing: border-box;
 }
 
 /* 2. 外側の枠組み */
 .container {
     width: 100%;
-    max-width: 400px;
+    max-width: 420px; /* 少しだけ余裕を持たせる */
     padding: 20px;
     box-sizing: border-box;
 }
@@ -20,32 +23,35 @@ body {
 /* 3. 白いカード（メインダイアログ） */
 .form-box {
     background: white;
-    padding: 40px;
+    padding: 30px 40px; /* 上下を少し詰め、左右を確保 */
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     text-align: center;
     box-sizing: border-box;
     width: 100%;
-    /* 長い英単語などが突き抜けないようにガード */
+    /* 長い単語やURLが突き抜けないようにガード */
     overflow-wrap: break-word;
     word-wrap: break-word;
+    word-break: break-word;
 }
 
-/* index.htmlなどで二重に枠が出ないように調整 */
+/* index.htmlなどで二重に背景や影が出ないようにリセット */
 .container .form-box {
     box-shadow: none;
     padding: 0;
+    background: transparent;
 }
 
-/* 4. 見出しと説明文（折り返し対応） */
+/* 4. 見出し（ここが折り返しのキモ！） */
 h2, h3 {
     margin-top: 0;
     margin-bottom: 15px;
     color: #1a1a1a;
-    line-height: 1.4;       /* 行間を広げて折り返し時に読みやすく */
+    line-height: 1.4;       /* 行間を広げて重なりを防止 */
     white-space: normal;    /* 折り返しを許可 */
     overflow-wrap: break-word;
-    font-size: 22px;        /* タイトルサイズを適切に設定 */
+    word-wrap: break-word;
+    font-size: 20px;        /* 長いタイトルでも圧迫感が出ないサイズ */
 }
 
 .description {
@@ -53,7 +59,7 @@ h2, h3 {
     color: #666;
     margin-bottom: 24px;
     line-height: 1.6;
-    white-space: pre-wrap;  /* 改行コードを反映しつつ折り返し */
+    white-space: pre-wrap;  /* 改行コードを反映 */
 }
 
 /* 5. 入力フォーム */
@@ -68,12 +74,6 @@ input {
     border-radius: 6px;
     box-sizing: border-box;
     font-size: 16px;
-    transition: border-color 0.2s;
-}
-
-input:focus {
-    border-color: #007bff;
-    outline: none;
 }
 
 /* 6. ボタン */
@@ -87,55 +87,27 @@ input:focus {
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
+    transition: background-color 0.2s;
 }
 
-.btn:hover {
-    background-color: #0056b3;
-}
-
-.btn:active {
-    transform: scale(0.98);
-}
-
-.btn:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
-
-.btn-success {
-    background-color: #28a745;
-}
-
-.btn-success:hover {
-    background-color: #218838;
-}
+.btn:hover { background-color: #0056b3; }
+.btn:disabled { background-color: #ccc; }
 
 /* 7. ステータスメッセージ */
 .status-message {
     margin-top: 15px;
     font-size: 14px;
     min-height: 1.5em;
+    word-wrap: break-word;
 }
 
 /* 8. フッターリンク */
 .footer-links {
     margin-top: 24px;
     font-size: 13px;
-    color: #666;
 }
 
 .back-link {
     color: #007bff;
     text-decoration: none;
-}
-
-.back-link:hover {
-    text-decoration: underline;
-}
-
-/* 未読セクション内のリスト調整 */
-#alert-list div {
-    text-align: left;
-    transition: background-color 0.3s;
 }
