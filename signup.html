@@ -5,6 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新規登録 - CF認証システム</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* 完了画面(success-area)専用の追加スタイル */
+        .success-icon {
+            font-size: 64px;
+            color: #28a745;
+            margin-bottom: 20px;
+            display: block;
+        }
+        .step-box {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #eee;
+        }
+        .step-title {
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #333;
+            font-size: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #555;
+            line-height: 1.4;
+        }
+        .step-number {
+            background: #007bff;
+            color: #fff;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 11px;
+            line-height: 20px;
+            text-align: center;
+            margin-right: 10px;
+            flex-shrink: 0;
+            font-weight: bold;
+        }
+        .exit-btn {
+            margin-top: 10px;
+            width: 100%;
+            background-color: #007bff;
+        }
+    </style>
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
@@ -28,22 +79,30 @@
             </div>
 
             <div id="success-area" style="display: none;">
-                <div style="font-size: 64px; margin-bottom: 10px;">📩</div>
-                <h3 style="color: #28a745; margin-bottom: 20px;">メールを送信しました</h3>
+                <span class="success-icon">✓</span>
+                <h3 style="color: #333; margin-bottom: 10px;">申請を受け付けました</h3>
+                <p class="description" style="margin-bottom: 0;">認証メールを送信しました。<br>内容を確認して手続きを進めてください。</p>
                 
-                <div class="description" style="background: #f8f9fa; padding: 25px; border-radius: 12px; line-height: 1.8; text-align: center;">
-                    入力されたアドレス宛に<br>認証メールを送信しました。<br><br>
-                    <div style="text-align: left; display: inline-block; font-weight: bold;">
-                        1. メール内のリンクをタップ<br>
-                        2. 管理者の承認を待つ
-                    </div><br><br>
-                    の手順で進めてください。
+                <div class="step-box">
+                    <div class="step-title">今後の流れ</div>
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div>メール内のリンクをタップ（認証完了）</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div>管理者による承認後にログイン可能</div>
+                    </div>
                 </div>
+
+                <button class="btn exit-btn" onclick="location.href='index.html'">
+                    ログイン画面へ戻る
+                </button>
             </div>
 
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
             
-            <div class="footer-links">
+            <div class="footer-links" id="footer-links-area">
                 <a href="index.html" class="back-link">ログイン画面へ戻る</a>
             </div>
         </div>
@@ -76,6 +135,7 @@
         const btn = document.getElementById('regBtn');
         const formArea = document.getElementById('signup-form-area');
         const successArea = document.getElementById('success-area');
+        const footerLinks = document.getElementById('footer-links-area');
 
         if (!name || !email || !password) {
             msgDiv.style.color = "#d93025";
@@ -102,6 +162,7 @@
 
           if (res.success) {
               formArea.style.display = "none";
+              footerLinks.style.display = "none"; // 下部の重複リンクを隠す
               successArea.style.display = "block";
               msgDiv.innerText = "";
           } else {
