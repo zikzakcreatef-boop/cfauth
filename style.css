@@ -1,57 +1,55 @@
 /* 1. 全体の土台 */
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
-    background-color: #f0f2f5; 
+    background-color: #f0f2f5; /* 背景は薄いグレー */
     display: flex;
     justify-content: center;
     align-items: center;
-    /* height: 100vh; を廃止し、最低高さを指定。中身が増えたら伸びるように */
     min-height: 100vh; 
     margin: 0;
-    padding: 20px 0; /* 上下に少し余白を持たせる */
-    box-sizing: border-box;
-}
-
-/* 2. 外側の枠組み */
-.container {
-    width: 100%;
-    max-width: 420px; /* 少しだけ余裕を持たせる */
     padding: 20px;
     box-sizing: border-box;
 }
 
-/* 3. 白いカード（メインダイアログ） */
+/* 2. 外側の枠組み（透明なガイド役） */
+.container {
+    width: 100%;
+    max-width: 420px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+}
+
+/* 3. 白いカード（ここを「浮かせ」直したぜ！） */
 .form-box {
-    background: white;
-    padding: 30px 40px; /* 上下を少し詰め、左右を確保 */
+    background-color: #ffffff; /* 明確な白 */
+    padding: 40px;
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); /* 影を少し強調 */
     text-align: center;
     box-sizing: border-box;
     width: 100%;
-    /* 長い単語やURLが突き抜けないようにガード */
+    /* 長いタイトル対応 */
     overflow-wrap: break-word;
     word-wrap: break-word;
-    word-break: break-word;
 }
 
-/* index.htmlなどで二重に背景や影が出ないようにリセット */
-.container .form-box {
-    box-shadow: none;
-    padding: 0;
-    background: transparent;
+/* index.html内の余計な打ち消し設定を上書き */
+#main-body .container .form-box {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    padding: 40px;
+    background-color: #ffffff;
 }
 
-/* 4. 見出し（ここが折り返しのキモ！） */
-h2, h3 {
+/* 4. 見出し（折り返し対応） */
+h2 {
     margin-top: 0;
     margin-bottom: 15px;
     color: #1a1a1a;
-    line-height: 1.4;       /* 行間を広げて重なりを防止 */
-    white-space: normal;    /* 折り返しを許可 */
+    line-height: 1.4;
+    white-space: normal;
     overflow-wrap: break-word;
-    word-wrap: break-word;
-    font-size: 20px;        /* 長いタイトルでも圧迫感が出ないサイズ */
+    font-size: 20px;
 }
 
 .description {
@@ -59,7 +57,7 @@ h2, h3 {
     color: #666;
     margin-bottom: 24px;
     line-height: 1.6;
-    white-space: pre-wrap;  /* 改行コードを反映 */
+    white-space: pre-wrap;
 }
 
 /* 5. 入力フォーム */
@@ -97,7 +95,6 @@ input {
 .status-message {
     margin-top: 15px;
     font-size: 14px;
-    min-height: 1.5em;
     word-wrap: break-word;
 }
 
