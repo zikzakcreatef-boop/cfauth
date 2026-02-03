@@ -6,7 +6,6 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 追加のスタイル：アコーディオン用 */
         #alert-list {
             display: none;
             text-align: left;
@@ -25,6 +24,7 @@
             font-size: 12px;
             font-weight: bold;
             margin-left: 5px;
+            transition: all 0.3s ease;
         }
     </style>
 </head>
@@ -116,26 +116,41 @@
             document.getElementById('unread-section').style.display = "block";
             document.getElementById('completion-msg').innerText = "✅ 閲覧確認が完了しました";
             
-            const toggle = document.getElementById('unread-toggle');
             if (unreadAlertsCache.length > 0) {
-                toggle.style.display = "block";
-                document.getElementById('unread-count-badge').innerText = unreadAlertsCache.length;
+                updateBadgeDisplay();
                 renderUnreadList();
                 
+                const toggle = document.getElementById('unread-toggle');
+                toggle.style.display = "block";
                 toggle.onclick = () => {
                     const list = document.getElementById('alert-list');
-                    list.style.display = (list.style.display === 'block') ? 'none' : 'block';
-                    toggle.innerText = (list.style.display === 'block') ? "未読リストを閉じる" : `他の未読書類を確認する (${unreadAlertsCache.length})`;
+                    const isOpening = (list.style.display !== 'block');
+                    list.style.display = isOpening ? 'block' : 'none';
+                    updateBadgeDisplay(); // 開閉時にもテキストを最新化
                 };
             }
-
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
+        }
+
+        function updateBadgeDisplay() {
+            const toggle = document.getElementById('unread-toggle');
+            const list = document.getElementById('alert-list');
+            const remainingCount = unreadAlertsCache.length - clickedIds.size;
+            
+            if (list.style.display === 'block') {
+                toggle.innerHTML = `未読リストを閉じる`;
+            } else {
+                if (remainingCount > 0) {
+                    toggle.innerHTML = `他の未読書類を確認する <span class="unread-badge">${remainingCount}</span>`;
+                } else {
+                    toggle.innerHTML = `すべての未読を確認しました <span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
+                }
+            }
         }
 
         function renderUnreadList() {
             const listDiv = document.getElementById('alert-list');
             listDiv.innerHTML = "";
-
             unreadAlertsCache.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
@@ -154,8 +169,8 @@
         async function handleLinkClick(event, url, index, id) {
             if(event) event.preventDefault();
             window.open(url, '_blank');
+            if (clickedIds.has(id)) return;
 
-            // GASへ記録送信
             fetch(GAS_URL, {
                 method: "POST",
                 body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
@@ -164,6 +179,9 @@
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
+            
+            // リストが開いている間はバッジの更新は目立たないが、裏でデータは更新しておく
+            // リストを閉じたときに最新の数字が出るようになる
         }
     </script>
 </body>
