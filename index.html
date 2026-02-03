@@ -26,6 +26,7 @@
             </div>
 
             <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
+            
             <div class="footer-links" id="footer-links">
                 <a href="signup.html" class="back-link">新規申請</a> | <a href="forgot-password.html" class="back-link">パスワードを忘れた</a>
             </div>
@@ -33,6 +34,10 @@
     </div>
     <script src="config.js"></script>
     <script>
+        // グローバル変数でリストを保持
+        let currentUnreadCount = 0;
+        const clickedIds = new Set();
+
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('contentId');
@@ -62,24 +67,19 @@
 
                 if (res.success) {
                     const data = res.data;
-                    // ログイン入力を隠す
+                    // 画面を切り替え
                     document.getElementById('login-fields').style.display = "none";
                     document.getElementById('footer-links').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
+                    msgDiv.innerText = "";
 
                     if (data.unreadAlerts && data.unreadAlerts.length > 0) {
-                        // 未読がある場合
+                        // 未読がある場合、リストを表示
+                        currentUnreadCount = data.unreadAlerts.length;
                         showUnreadUI(data.unreadAlerts, data.redirectUrl);
                     } else {
-                        // 未読がない場合
-                        msgDiv.style.color = "#28a745";
-                        msgDiv.innerHTML = "✅ 認証および閲覧確認が完了しました";
-                        document.getElementById('unread-section').style.display = "block";
-                        document.getElementById('unread-status-title').style.display = "none";
-                        const contBtn = document.getElementById('continueBtn');
-                        contBtn.style.backgroundColor = "#28a745";
-                        contBtn.innerText = "メインページへ進む";
-                        contBtn.onclick = () => { window.location.href = data.redirectUrl; };
+                        // 未読がない場合、即完了状態
+                        showCompletionUI(data.redirectUrl);
                     }
                 } else {
                     msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
@@ -90,20 +90,15 @@
         function showUnreadUI(alerts, redirectUrl) {
             const unreadSection = document.getElementById('unread-section');
             const listDiv = document.getElementById('alert-list');
-            const contBtn = document.getElementById('continueBtn');
             unreadSection.style.display = "block";
             listDiv.innerHTML = "";
-            const clickedItems = new Set();
 
             alerts.forEach((item, index) => {
-                const isOverdue = item.status === "OVERDUE";
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
-                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; border-radius:8px; background:#fff; border: 1px solid #eee;";
+                div.style.cssText = "padding:15px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fff; border-radius:8px;";
                 div.innerHTML = `
-                    <div style="font-weight:bold; color:${isOverdue ? '#d93025' : '#333'};">
-                        <span id="status-icon-${index}">⭕</span> ${isOverdue ? '[期限切れ] ' : ''}${item.title}
-                    </div>
+                    <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
                     <div style="font-size:12px; color:#666; margin:4px 0;">${item.description}</div>
                     <a href="${item.url}" target="_blank" id="link-${index}"
                        style="font-size:13px; color:#007bff; text-decoration:none; font-weight:bold; border: 1px solid #007bff; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-top:5px;"
@@ -114,25 +109,44 @@
                 listDiv.appendChild(div);
             });
 
-            window.markAsRead = (idx, id) => {
-                const targetDiv = document.getElementById(`item-${idx}`);
-                const statusIcon = document.getElementById(`status-icon-${idx}`);
-                const linkObj = document.getElementById(`link-${idx}`);
-                targetDiv.style.backgroundColor = "#f0fdf4";
-                targetDiv.style.borderColor = "#bbf7d0";
-                statusIcon.innerText = "✅";
-                linkObj.innerText = "確認済み";
-                linkObj.style.color = "#28a745";
-                linkObj.style.borderColor = "#28a745";
-                clickedItems.add(id);
+            const contBtn = document.getElementById('continueBtn');
+            contBtn.onclick = () => { window.location.href = redirectUrl; };
+        }
 
-                if (clickedItems.size >= alerts.length) {
-                    contBtn.style.backgroundColor = "#28a745";
-                    contBtn.innerText = "全ての確認が完了しました（次へ）";
-                    document.getElementById('message').style.color = "#28a745";
-                    document.getElementById('message').innerHTML = "✅ 証跡が記録されました";
-                }
-            };
+        function markAsRead(idx, id) {
+            // クリック済みを記録（画面遷移させない）
+            clickedIds.add(id);
+            
+            const targetDiv = document.getElementById(`item-${idx}`);
+            const statusIcon = document.getElementById(`status-icon-${idx}`);
+            const linkObj = document.getElementById(`link-${idx}`);
+            const contBtn = document.getElementById('continueBtn');
+            const msgDiv = document.getElementById('message');
+
+            targetDiv.style.backgroundColor = "#f0fdf4";
+            statusIcon.innerText = "✅";
+            linkObj.innerText = "確認済み";
+            linkObj.style.color = "#28a745";
+            linkObj.style.borderColor = "#28a745";
+
+            // 全てクリックされたかチェック
+            if (clickedIds.size >= currentUnreadCount) {
+                contBtn.style.backgroundColor = "#28a745";
+                contBtn.innerText = "全ての確認が完了しました（次へ）";
+                msgDiv.style.color = "#28a745";
+                msgDiv.innerHTML = "✅ 証跡が記録されました";
+            }
+        }
+
+        function showCompletionUI(redirectUrl) {
+            const msgDiv = document.getElementById('message');
+            msgDiv.style.color = "#28a745";
+            msgDiv.innerHTML = "✅ 認証および閲覧確認が完了しました";
+            document.getElementById('unread-section').style.display = "block";
+            document.getElementById('unread-status-title').style.display = "none";
+            const contBtn = document.getElementById('continueBtn');
+            contBtn.style.backgroundColor = "#28a745";
+            contBtn.innerText = "メインページへ進む";
             contBtn.onclick = () => { window.location.href = redirectUrl; };
         }
     </script>
