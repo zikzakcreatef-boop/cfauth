@@ -13,11 +13,20 @@
             <h2 id="system-title">Loading...</h2>
             <p id="system-description" class="description" style="margin-top: -10px; margin-bottom: 20px; min-height: 1.2em; white-space: pre-wrap;"></p>
             
-            <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
-            <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
-            <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
+            <div id="login-fields">
+                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
+                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
+                <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
+            </div>
+            
+            <div id="unread-section" style="display: none;">
+                <h3 style="color: #d93025; font-size: 18px;">⚠️ 未読の重要書類があります</h3>
+                <div id="alert-list" style="text-align: left; margin: 20px 0; max-height: 250px; overflow-y: auto;"></div>
+                <button id="continueBtn" class="btn" style="background-color: #6c757d;">メインページへ進む</button>
+            </div>
+
             <div id="message" class="status-message"></div>
-            <div class="footer-links">
+            <div class="footer-links" id="footer-links">
                 <a href="signup.html" class="back-link">新規利用の申請</a> | 
                 <a href="forgot-password.html" class="back-link">パスワードを忘れた</a>
             </div>
@@ -43,30 +52,24 @@
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
                 });
                 const res = await response.json();
-                if (res.success) {
-                    document.getElementById('system-title').innerText = res.title;
-                    document.getElementById('system-description').innerText = res.description;
-                    document.title = res.title + " - ログイン";
-                    if (res.bgColor) document.body.style.setProperty('background', res.bgColor, 'important');
+                if (res.success && res.data) {
+                    const ui = res.data;
+                    document.getElementById('system-title').innerText = ui.title;
+                    document.getElementById('system-description').innerText = ui.description;
+                    document.title = ui.title + " - ログイン";
+                    if (ui.bgColor) document.body.style.setProperty('background', ui.bgColor, 'important');
                     
-                    // 物置を更新
-                    localStorage.setItem('cached_system_title', res.title);
-                    localStorage.setItem('cached_system_desc', res.description);
-                    localStorage.setItem('cached_bg_color', res.bgColor);
+                    localStorage.setItem('cached_system_title', ui.title);
+                    localStorage.setItem('cached_system_desc', ui.description);
+                    localStorage.setItem('cached_bg_color', ui.bgColor);
 
-                    // ロゴの判定：noneなら消去、あれば表示
                     const logoContainer = document.getElementById('logo-container');
-                    if (res.logoUrl && res.logoUrl !== "none" && res.logoUrl !== "") {
-                        logoContainer.innerHTML = `<img src="${res.logoUrl}" style="max-width: 120px; height: auto;">`;
-                        localStorage.setItem('cached_logo_url', res.logoUrl);
-                    } else {
-                        logoContainer.innerHTML = "";
-                        localStorage.removeItem('cached_logo_url');
+                    if (ui.logoUrl && ui.logoUrl !== "none") {
+                        logoContainer.innerHTML = `<img src="${ui.logoUrl}" style="max-width: 120px; height: auto;">`;
+                        localStorage.setItem('cached_logo_url', ui.logoUrl);
                     }
                 }
-            } catch (err) {
-                document.getElementById('system-title').innerText = "CF認証システム";
-            }
+            } catch (err) { console.error(err); }
         };
 
         async function login() {
@@ -74,20 +77,66 @@
             const password = document.getElementById('password').value;
             const msgDiv = document.getElementById('message');
             const btn = document.getElementById('loginBtn');
+            const urlParams = new URLSearchParams(window.location.search);
+            const contentId = urlParams.get('contentId');
+
             if (!email || !password) { msgDiv.style.color = "#d93025"; msgDiv.innerText = "入力してください。"; return; }
+            
             btn.disabled = true; msgDiv.style.color = "#007bff"; msgDiv.innerText = "認証中...";
+            
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password })
+                    body: JSON.stringify({ 
+                        action: "login", 
+                        apiKey: API_KEY, 
+                        userId: email, 
+                        password: password,
+                        contentId: contentId 
+                    })
                 });
                 const res = await response.json();
-                if (res.success) {
-                    window.location.href = res.redirectUrl;
+
+                if (res.success && res.data) {
+                    const data = res.data;
+                    if (data.unreadAlerts && data.unreadAlerts.length > 0) {
+                        showUnreadUI(data.unreadAlerts, data.redirectUrl);
+                    } else {
+                        msgDiv.style.color = "#28a745";
+                        msgDiv.innerText = "認証完了。移動します...";
+                        setTimeout(() => { window.location.href = data.redirectUrl; }, 800);
+                    }
                 } else {
                     msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
                 }
             } catch (err) { msgDiv.innerText = "通信エラー"; btn.disabled = false; }
+        }
+
+        function showUnreadUI(alerts, redirectUrl) {
+            document.getElementById('login-fields').style.display = "none";
+            document.getElementById('footer-links').style.display = "none";
+            document.getElementById('system-description').style.display = "none";
+            document.getElementById('message').innerText = "";
+            
+            const unreadSection = document.getElementById('unread-section');
+            const listDiv = document.getElementById('alert-list');
+            unreadSection.style.display = "block";
+
+            alerts.forEach(item => {
+                const isOverdue = item.status === "OVERDUE";
+                const div = document.createElement('div');
+                div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px;";
+                div.innerHTML = `
+                    <div style="font-weight:bold; color:${isOverdue ? '#d93025' : '#333'};">
+                        ${isOverdue ? '[期限切れ] ' : ''}${item.title}
+                    </div>
+                    <div style="font-size:12px; color:#666;">期限: ${item.deadline}</div>
+                    <a href="${item.url}" target="_blank" style="font-size:14px; color:#007bff; text-decoration:none;">▶ 内容を確認する</a>
+                `;
+                listDiv.appendChild(div);
+            });
+
+            document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrl; };
         }
     </script>
 </body>
