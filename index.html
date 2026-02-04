@@ -36,6 +36,9 @@
                 <button id="continueBtn" class="btn" style="background-color: #28a745; margin-top:10px;">メインページへ進む</button>
             </div>
             <p id="message" class="status-message"></p>
+            <div id="footer-links-area" style="margin-top: 20px; font-size: 13px;">
+                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた方</a>
+            </div>
         </div>
     </div>
 
@@ -48,10 +51,10 @@
 
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
-            if (res.success) {
-                // code.gsの返却キーに合わせる
-                document.getElementById('system-title').innerText = res.data.title || "CF認証システム";
-                document.getElementById('system-description').innerText = res.data.description || "";
+            if (res.success && res.data) {
+                // GASから返ってくる data {title, description, bgColor} を確実に反映
+                document.getElementById('system-title').innerText = res.data.title;
+                document.getElementById('system-description').innerText = res.data.description;
                 if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
             }
             document.body.classList.add('loaded');
@@ -84,6 +87,7 @@
         function showUI() {
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
+            document.getElementById('footer-links-area').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
             document.getElementById('completion-msg').innerText = "✅ 認証を完了しました";
             
@@ -95,7 +99,6 @@
                 updateBadgeDisplay();
                 renderList();
             } else {
-                // 未読がない場合は即座に「済」状態
                 updateBadgeDisplay();
             }
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
