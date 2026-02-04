@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.05</title>
+    <title>CF認証システム Ver 1.06</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body { opacity: 0; transition: opacity 0.3s; }
+        body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
         #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
         .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
@@ -47,14 +47,24 @@
         let loggedInUserId = "";
         let redirectUrlCache = "";
 
+        // 初期ロード時にGASから設定を取得
         window.onload = async () => {
-            const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
-            if (res.success && res.data) {
-                // GAS側で title にマッピングされているため、正しく反映される
-                document.getElementById('system-title').innerText = res.data.title;
-                document.getElementById('system-description').innerText = res.data.description;
-                if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
+            try {
+                const res = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) 
+                }).then(r => r.json());
+                
+                if (res.success && res.data) {
+                    // GAS側で title にマッピングされた値がここで反映される
+                    document.getElementById('system-title').innerText = res.data.title;
+                    document.getElementById('system-description').innerText = res.data.description;
+                    if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
+                }
+            } catch (e) {
+                console.error("Config load error:", e);
             }
+            // データの成否に関わらず、画面を表示させてフリーズを回避
             document.body.classList.add('loaded');
         };
 
@@ -121,14 +131,17 @@
         }
 
         async function handleCheck(event, url, id, i) {
-            event.stopPropagation(); // 親のtoggleDetails発火を防ぐ
+            event.stopPropagation();
             const icon = document.getElementById(`icon-${i}`);
             if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
 
-            // GASに記録
-            await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            // GASに既読を記録
+            await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
+            });
             
-            // UI更新
+            // UIを即座に更新し、バッジを減らす
             icon.innerText = "✅";
             document.getElementById(`btn-${i}`).innerText = "確認済み";
             currentUnreadCount--;
