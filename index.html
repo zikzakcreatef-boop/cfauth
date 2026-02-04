@@ -26,13 +26,23 @@
             margin-left: 5px;
             transition: all 0.3s ease;
         }
+        /* 説明文（system_description）用のスタイル */
+        .system-desc {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.6;
+            white-space: pre-wrap; /* 改行を反映 */
+        }
     </style>
 </head>
 <body id="main-body" style="transition: background 0.5s ease;">
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            <h2 id="system-title">Loading...</h2>
+            <h2 id="system-title" style="margin-bottom: 8px;">Loading...</h2>
+            
+            <div id="system-description" class="system-desc"></div>
 
             <div id="login-form">
                 <div class="input-group"><input type="email" id="userId" placeholder="メールアドレス" required></div>
@@ -46,13 +56,10 @@
 
             <div id="user-panel" style="display:none;">
                 <p class="description">こんにちは、<span id="display-name" style="font-weight:bold;"></span> さん</p>
-                
                 <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">
                     未読のお知らせ: <span id="unread-count" class="unread-badge">0</span>
                 </div>
-
                 <div id="alert-list"></div>
-
                 <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">閲覧サイトへ移動</button>
                 <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">ログアウト</button>
             </div>
@@ -70,6 +77,14 @@
         window.onload = fetchUIConfig;
 
         async function fetchUIConfig() {
+            // キャッシュがあれば即座に反映（ガタつき防止）
+            const cachedTitle = localStorage.getItem('cached_system_title');
+            const cachedBg = localStorage.getItem('cached_bg_color');
+            const cachedLogo = localStorage.getItem('cached_logo_url');
+            if(cachedTitle) document.getElementById('system-title').innerText = cachedTitle;
+            if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
+            if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
+
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
@@ -79,17 +94,21 @@
                 if (res.success) {
                     const config = res.data;
                     document.getElementById('system-title').innerText = config.system_title;
+                    
+                    // 【復活】GAS経由でスプレッドシートの説明文をセット
+                    document.getElementById('system-description').innerText = config.system_description || "";
+                    
                     document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
-                    // キャッシュ保存
+                    // キャッシュ更新
                     localStorage.setItem('cached_system_title', config.system_title);
                     localStorage.setItem('cached_bg_color', config.bg_color);
                     localStorage.setItem('cached_logo_url', config.logo_url);
                 }
             } catch (e) {
-                document.getElementById('system-title').innerText = localStorage.getItem('cached_system_title') || "CF認証システム";
+                console.error("Config fetch error:", e);
             }
         }
 
@@ -107,18 +126,17 @@
 
                 if (res.success) {
                     loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl; // GASから返されたURL（個別優先）
+                    redirectUrl = res.data.redirectUrl; 
                     
                     document.getElementById('login-form').style.display = "none";
+                    // ログイン後は説明文を隠してパネルを広く使う
+                    document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
                     msg.innerText = "";
 
                     renderUnreadList(res.data.unreadList);
-                    
-                    // 閲覧サイト移動ボタンの挙動設定
                     document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
-
                 } else {
                     msg.style.color = "#d93025";
                     msg.innerText = res.message;
@@ -132,26 +150,21 @@
             const listDiv = document.getElementById('alert-list');
             const countSpan = document.getElementById('unread-count');
             listDiv.innerHTML = "";
-            
             if (!list || list.length === 0) {
                 listDiv.style.display = "none";
                 countSpan.innerText = "0";
-                countSpan.style.background = "#e9ecef";
-                countSpan.style.color = "#6c757d";
                 return;
             }
-
             listDiv.style.display = "block";
             countSpan.innerText = list.length;
-
             list.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
                 div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
                 div.innerHTML = `
-                    <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
-                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">
+                    <div style="font-weight:bold;"><span id=\"status-icon-${index}\">⭕</span> ${item.title}</div>
+                    <div style=\"color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;\" 
+                         onclick=\"handleLinkClick(event, '${item.url}', '${index}', '${item.id}')\">
                        ▶ 内容を確認する
                     </div>
                 `;
@@ -163,20 +176,16 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
-
             fetch(GAS_URL, {
                 method: "POST",
                 body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
             });
-
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
 
-        function logout() {
-            location.reload();
-        }
+        function logout() { location.reload(); }
     </script>
 </body>
 </html>
