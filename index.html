@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.02</title>
+    <title>CF認証システム Ver 1.05</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; }
@@ -50,6 +50,7 @@
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
             if (res.success && res.data) {
+                // GAS側で title にマッピングされているため、正しく反映される
                 document.getElementById('system-title').innerText = res.data.title;
                 document.getElementById('system-description').innerText = res.data.description;
                 if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
