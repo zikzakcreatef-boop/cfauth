@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.06</title>
+    <title>CF認証システム Ver 1.07</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
         #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
-        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
+        /* 余計なcursor:pointerを削除 */
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
-        .details { display: none; margin-top: 10px; padding: 10px; background: #fafafa; border-radius: 4px; }
+        /* シンプルな説明文表示 */
+        .item-desc { font-size:12px; color:#666; margin: 8px 0; line-height: 1.4; }
     </style>
 </head>
 <body id="main-body">
@@ -21,20 +23,21 @@
             <p id="system-description" class="description"></p>
             
             <div id="login-fields">
-                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
-                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
+                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:12px; margin-bottom:12px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:12px; margin-bottom:12px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px;">
                 <button id="loginBtn" class="btn" onclick="login()" style="width:100%;">ログイン</button>
             </div>
 
             <div id="unread-section" style="display: none;">
-                <h3 style="color:#28a745;">✅ 認証完了</h3>
-                <p id="badge-header" style="font-weight:bold; color:#007bff;">未読数: <span id="badge-area"></span></p>
+                <h3 style="color:#28a745; margin-top: 0;">✅ 認証完了</h3>
+                <p id="badge-header" style="font-weight:bold; color:#007bff; margin-bottom: 15px;">未読数: <span id="badge-area"></span></p>
                 <div id="alert-list"></div>
                 <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:10px;">メインサイトへ</button>
             </div>
-            <p id="message" style="color:red;"></p>
             
-            <div class="footer-links" id="footer-nav">
+            <p id="message" style="color:red; font-size: 14px; margin-top: 10px;"></p>
+            
+            <div class="footer-links" id="footer-nav" style="margin-top: 20px;">
                 <a href="signup.html">新規登録</a> | <a href="forgot-password.html">パスワードを忘れた</a>
             </div>
         </div>
@@ -47,51 +50,70 @@
         let loggedInUserId = "";
         let redirectUrlCache = "";
 
-        // 初期ロード時にGASから設定を取得
+        // 表示の安全装置（1.5秒経ってもLoadingなら強制表示）
+        const forceShow = setTimeout(() => {
+            if (!document.body.classList.contains('loaded')) {
+                document.getElementById('system-title').innerText = "CF認証システム";
+                document.body.classList.add('loaded');
+            }
+        }, 1500);
+
         window.onload = async () => {
             try {
-                const res = await fetch(GAS_URL, { 
+                const response = await fetch(GAS_URL, { 
                     method: "POST", 
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) 
-                }).then(r => r.json());
-                
+                });
+                const res = await response.json();
                 if (res.success && res.data) {
-                    // GAS側で title にマッピングされた値がここで反映される
                     document.getElementById('system-title').innerText = res.data.title;
                     document.getElementById('system-description').innerText = res.data.description;
-                    if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
+                    if (res.data.bgColor && res.data.bgColor !== "none") {
+                        document.body.style.backgroundColor = res.data.bgColor;
+                    }
                 }
             } catch (e) {
                 console.error("Config load error:", e);
+                document.getElementById('system-title').innerText = "CF認証システム";
+            } finally {
+                clearTimeout(forceShow);
+                document.body.classList.add('loaded');
             }
-            // データの成否に関わらず、画面を表示させてフリーズを回避
-            document.body.classList.add('loaded');
         };
 
         async function login() {
             const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const res = await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
-            }).then(r => r.json());
-            
-            if (res.success) {
-                loggedInUserId = userId;
-                unreadCache = res.data.unreadAlerts || [];
-                redirectUrlCache = res.data.redirectUrl;
-                currentUnreadCount = unreadCache.length;
-                showUI();
-            } else {
-                document.getElementById('message').innerText = res.message;
+            const msg = document.getElementById('message');
+            msg.innerText = "認証中...";
+
+            try {
+                const res = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
+                }).then(r => r.json());
+                
+                if (res.success) {
+                    msg.innerText = "";
+                    loggedInUserId = userId;
+                    unreadCache = res.data.unreadAlerts || [];
+                    redirectUrlCache = res.data.redirectUrl;
+                    currentUnreadCount = unreadCache.length;
+                    showUnreadUI();
+                } else {
+                    msg.innerText = res.message;
+                }
+            } catch (e) {
+                msg.innerText = "通信エラーが発生しました。";
             }
         }
 
-        function showUI() {
+        function showUnreadUI() {
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
             document.getElementById('footer-nav').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
+            
             updateBadge();
             if (currentUnreadCount > 0) {
                 document.getElementById('alert-list').style.display = "block";
@@ -106,47 +128,56 @@
                 area.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
             } else {
                 area.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-                document.getElementById('badge-header').innerText = "✅ すべての確認が完了しました";
+                document.getElementById('badge-header').innerHTML = "✅ すべての内容を確認しました";
             }
-        }
-
-        function toggleDetails(i) {
-            const el = document.getElementById(`details-${i}`);
-            el.style.display = el.style.display === 'block' ? 'none' : 'block';
         }
 
         function renderList() {
             const listDiv = document.getElementById('alert-list');
+            // アコーディオンを廃止し、最初からタイトルと説明を並べるシンプル構成
             listDiv.innerHTML = unreadCache.map((item, i) => `
-                <div class="unread-item" onclick="toggleDetails(${i})">
-                    <div style="font-weight:bold; display: flex; justify-content: space-between;">
-                        <span><span id="icon-${i}">⭕</span> ${item.title}</span>
-                        <span>▼</span>
+                <div class="unread-item">
+                    <div style="font-weight:bold; color: #333;">
+                        <span id="icon-${i}">⭕</span> ${item.title}
                     </div>
-                    <div id="details-${i}" class="details">
-                        <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
-                        <button id="btn-${i}" onclick="handleCheck(event, '${item.url}', '${item.id}', ${i})" style="color:blue; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">▶ 内容を確認する</button>
+                    <div class="item-desc">${item.description || "説明はありません。"}</div>
+                    <div style="text-align: right; margin-top: 10px;">
+                        <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" 
+                                style="color:#007bff; background:none; border:none; text-decoration:underline; cursor:pointer; padding:5px; font-weight:bold;">
+                            ▶ 内容を確認する
+                        </button>
                     </div>
                 </div>`).join('');
         }
 
-        async function handleCheck(event, url, id, i) {
-            event.stopPropagation();
+        async function handleCheck(url, id, i) {
             const icon = document.getElementById(`icon-${i}`);
-            if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
+            const btn = document.getElementById(`btn-${i}`);
+            
+            // すでにチェック済みならURLを開くだけ
+            if (icon.innerText === "✅") {
+                window.open(url, '_blank');
+                return;
+            }
 
             // GASに既読を記録
-            await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
-            });
+            try {
+                await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
+                });
+                
+                // UIを即座に更新
+                icon.innerText = "✅";
+                btn.innerText = "確認済み（再表示）";
+                btn.style.color = "#666";
+                currentUnreadCount--;
+                updateBadge();
+            } catch (e) {
+                console.error("Record error:", e);
+            }
             
-            // UIを即座に更新し、バッジを減らす
-            icon.innerText = "✅";
-            document.getElementById(`btn-${i}`).innerText = "確認済み";
-            currentUnreadCount--;
-            updateBadge();
-            
+            // 別タブで内容を表示
             window.open(url, '_blank');
         }
     </script>
