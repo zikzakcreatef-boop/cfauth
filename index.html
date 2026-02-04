@@ -9,7 +9,7 @@
         body { opacity: 0; transition: opacity 0.3s; }
         .loaded { opacity: 1; }
         #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
-        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.3s; }
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .item-title { font-weight: bold; font-size: 15px; display: block; margin-bottom: 5px; }
         .item-desc { font-size: 13px; color: #555; margin-bottom: 10px; white-space: pre-wrap; }
         .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; font-weight: bold; }
@@ -29,16 +29,13 @@
 
             <div id="unread-section" style="display: none;">
                 <p id="completion-msg" style="color: #28a745; font-weight: bold; font-size: 16px; margin-bottom: 20px;"></p>
-                <div id="unread-header-area" style="text-align:left; font-size:14px; font-weight:bold; color:#007bff; margin-bottom:10px; display:none;">
-                    📍 未読の書類があります <span id="badge-area"></span>
+                <div id="unread-header-area" style="text-align:left; font-size:14px; font-weight:bold; color:#007bff; margin-bottom:10px;">
+                    📍 未読の書類: <span id="badge-area"></span>
                 </div>
                 <div id="alert-list"></div>
                 <button id="continueBtn" class="btn" style="background-color: #28a745; margin-top:10px;">メインページへ進む</button>
             </div>
             <p id="message" class="status-message"></p>
-            <div id="footer-links-area" style="margin-top: 20px; font-size: 13px;">
-                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた方</a>
-            </div>
         </div>
     </div>
 
@@ -52,7 +49,6 @@
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
             if (res.success && res.data) {
-                // GASから返ってくる data {title, description, bgColor} を確実に反映
                 document.getElementById('system-title').innerText = res.data.title;
                 document.getElementById('system-description').innerText = res.data.description;
                 if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
@@ -63,16 +59,7 @@
         async function login() {
             const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const contentId = new URLSearchParams(window.location.search).get('contentId');
-            
-            const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-
-            const res = await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password, contentId }) 
-            }).then(r => r.json());
-
+            const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) }).then(r => r.json());
             if (res.success) {
                 loggedInUserId = userId;
                 unreadCache = res.data.unreadAlerts || [];
@@ -80,83 +67,46 @@
                 showUI();
             } else {
                 document.getElementById('message').innerText = res.message;
-                btn.disabled = false;
             }
         }
 
         function showUI() {
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
-            document.getElementById('footer-links-area').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
             document.getElementById('completion-msg').innerText = "✅ 認証を完了しました";
-            
             currentUnreadCount = unreadCache.length;
-
+            updateBadgeDisplay();
             if (currentUnreadCount > 0) {
-                document.getElementById('unread-header-area').style.display = "block";
                 document.getElementById('alert-list').style.display = "block";
-                updateBadgeDisplay();
                 renderList();
-            } else {
-                updateBadgeDisplay();
             }
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
         }
 
         function updateBadgeDisplay() {
-            const badgeArea = document.getElementById('badge-area');
-            const headerArea = document.getElementById('unread-header-area');
-            if (currentUnreadCount > 0) {
-                badgeArea.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
-            } else {
-                badgeArea.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-                headerArea.style.color = "#28a745";
-                headerArea.innerHTML = `✅ すべての未読を確認しました <span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-            }
+            const area = document.getElementById('badge-area');
+            area.innerHTML = currentUnreadCount > 0 ? `<span class="unread-badge">${currentUnreadCount}</span>` : `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
         }
 
         function renderList() {
             const listDiv = document.getElementById('alert-list');
-            listDiv.innerHTML = "";
-            unreadCache.forEach((item, i) => {
-                const div = document.createElement('div');
-                div.className = "unread-item";
-                div.id = `item-box-${i}`;
-                div.innerHTML = `
+            listDiv.innerHTML = unreadCache.map((item, i) => `
+                <div class="unread-item" id="item-box-${i}">
                     <span class="item-title"><span id="icon-${i}">⭕</span> ${item.title}</span>
                     <p class="item-desc">${item.description || ""}</p>
-                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; background:none; border:none; text-decoration:underline; padding:0;">
-                        ▶ 内容を確認する
-                    </button>`;
-                listDiv.appendChild(div);
-            });
+                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; background:none; border:none; text-decoration:underline; padding:0;">▶ 内容を確認する</button>
+                </div>`).join('');
         }
 
         async function handleCheck(url, id, i) {
-            const btn = document.getElementById(`btn-${i}`);
             const icon = document.getElementById(`icon-${i}`);
-            
-            if (icon.innerText === "✅") {
-                window.open(url, '_blank');
-                return;
-            }
-
-            btn.innerText = "処理中...";
-            const res = await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
-            }).then(r => r.json());
-
-            if (res.success) {
-                icon.innerText = "✅";
-                btn.innerText = "確認済み";
-                btn.style.color = "#999";
-                document.getElementById(`item-box-${i}`).style.backgroundColor = "#f0fdf4";
-                
-                currentUnreadCount--;
-                updateBadgeDisplay();
-            }
+            if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
+            await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            icon.innerText = "✅";
+            document.getElementById(`item-box-${i}`).style.backgroundColor = "#f0fdf4";
+            currentUnreadCount--;
+            updateBadgeDisplay();
             window.open(url, '_blank');
         }
     </script>
