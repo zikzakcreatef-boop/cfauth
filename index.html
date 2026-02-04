@@ -6,13 +6,13 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body { opacity: 0; margin: 0; transition: opacity 0.3s; }
+        body { opacity: 0; transition: opacity 0.3s; }
         .loaded { opacity: 1; }
-        #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; max-height: 300px; overflow-y: auto; }
-        .unread-item { padding:12px; border-bottom:1px solid #eee; background:#fafafa; border-radius:6px; margin-bottom:8px; }
-        .unread-header { display: flex; justify-content: space-between; cursor: pointer; font-weight: bold; font-size: 14px; }
-        .unread-content { display: none; padding: 10px 5px; font-size: 13px; color: #444; }
-        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; }
+        #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.3s; }
+        .item-title { font-weight: bold; font-size: 15px; display: block; margin-bottom: 5px; }
+        .item-desc { font-size: 13px; color: #555; margin-bottom: 10px; white-space: pre-wrap; }
+        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; font-weight: bold; }
     </style>
 </head>
 <body id="main-body">
@@ -28,9 +28,9 @@
             </div>
 
             <div id="unread-section" style="display: none;">
-                <p id="completion-msg" style="color: #28a745; font-weight: bold;"></p>
-                <div id="unread-toggle" style="display:none; cursor:pointer; color:#007bff; font-size:14px; margin:15px 0; text-decoration:underline;">
-                    他の未読書類を確認する <span id="badge-area"></span>
+                <p id="completion-msg" style="color: #28a745; font-weight: bold; font-size: 16px; margin-bottom: 20px;"></p>
+                <div id="unread-header-area" style="text-align:left; font-size:14px; font-weight:bold; color:#007bff; margin-bottom:10px; display:none;">
+                    📍 未読の書類があります <span id="badge-area"></span>
                 </div>
                 <div id="alert-list"></div>
                 <button id="continueBtn" class="btn" style="background-color: #28a745; margin-top:10px;">メインページへ進む</button>
@@ -44,13 +44,15 @@
         let unreadCache = [];
         let loggedInUserId = "";
         let redirectUrlCache = "";
+        let currentUnreadCount = 0;
 
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
             if (res.success) {
-                document.getElementById('system-title').innerText = res.data.system_title;
-                document.getElementById('system-description').innerText = res.data.system_description;
-                if (res.data.bg_color) document.body.style.backgroundColor = res.data.bg_color;
+                // code.gsの返却キーに合わせる
+                document.getElementById('system-title').innerText = res.data.title || "CF認証システム";
+                document.getElementById('system-description').innerText = res.data.description || "";
+                if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
             }
             document.body.classList.add('loaded');
         };
@@ -60,6 +62,9 @@
             const password = document.getElementById('password').value;
             const contentId = new URLSearchParams(window.location.search).get('contentId');
             
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+
             const res = await fetch(GAS_URL, { 
                 method: "POST", 
                 body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password, contentId }) 
@@ -72,6 +77,7 @@
                 showUI();
             } else {
                 document.getElementById('message').innerText = res.message;
+                btn.disabled = false;
             }
         }
 
@@ -79,19 +85,32 @@
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
-            document.getElementById('completion-msg').innerText = "✅ 認証が完了しました";
+            document.getElementById('completion-msg').innerText = "✅ 認証を完了しました";
             
-            if (unreadCache.length > 0) {
-                const toggle = document.getElementById('unread-toggle');
-                toggle.style.display = "block";
-                document.getElementById('badge-area').innerHTML = `<span class="unread-badge">${unreadCache.length}</span>`;
+            currentUnreadCount = unreadCache.length;
+
+            if (currentUnreadCount > 0) {
+                document.getElementById('unread-header-area').style.display = "block";
+                document.getElementById('alert-list').style.display = "block";
+                updateBadgeDisplay();
                 renderList();
-                toggle.onclick = () => {
-                    const list = document.getElementById('alert-list');
-                    list.style.display = (list.style.display === 'block') ? 'none' : 'block';
-                };
+            } else {
+                // 未読がない場合は即座に「済」状態
+                updateBadgeDisplay();
             }
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
+        }
+
+        function updateBadgeDisplay() {
+            const badgeArea = document.getElementById('badge-area');
+            const headerArea = document.getElementById('unread-header-area');
+            if (currentUnreadCount > 0) {
+                badgeArea.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
+            } else {
+                badgeArea.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
+                headerArea.style.color = "#28a745";
+                headerArea.innerHTML = `✅ すべての未読を確認しました <span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
+            }
         }
 
         function renderList() {
@@ -100,31 +119,41 @@
             unreadCache.forEach((item, i) => {
                 const div = document.createElement('div');
                 div.className = "unread-item";
+                div.id = `item-box-${i}`;
                 div.innerHTML = `
-                    <div class="unread-header" onclick="toggleAcc(${i})">
-                        <span><span id="icon-${i}">⭕</span> ${item.title}</span>
-                        <span>▼</span>
-                    </div>
-                    <div id="acc-${i}" class="unread-content">
-                        <p>${item.description || "詳細なし"}</p>
-                        <button onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; border:none; background:none; text-decoration:underline;">▶ 内容を確認する</button>
-                    </div>`;
+                    <span class="item-title"><span id="icon-${i}">⭕</span> ${item.title}</span>
+                    <p class="item-desc">${item.description || ""}</p>
+                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; background:none; border:none; text-decoration:underline; padding:0;">
+                        ▶ 内容を確認する
+                    </button>`;
                 listDiv.appendChild(div);
             });
         }
 
-        function toggleAcc(i) {
-            const el = document.getElementById(`acc-${i}`);
-            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
-        }
-
         async function handleCheck(url, id, i) {
-            // 先にGASへ記録（awaitで完了を待つ）
-            await fetch(GAS_URL, { 
+            const btn = document.getElementById(`btn-${i}`);
+            const icon = document.getElementById(`icon-${i}`);
+            
+            if (icon.innerText === "✅") {
+                window.open(url, '_blank');
+                return;
+            }
+
+            btn.innerText = "処理中...";
+            const res = await fetch(GAS_URL, { 
                 method: "POST", 
                 body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
-            });
-            document.getElementById(`icon-${i}`).innerText = "✅";
+            }).then(r => r.json());
+
+            if (res.success) {
+                icon.innerText = "✅";
+                btn.innerText = "確認済み";
+                btn.style.color = "#999";
+                document.getElementById(`item-box-${i}`).style.backgroundColor = "#f0fdf4";
+                
+                currentUnreadCount--;
+                updateBadgeDisplay();
+            }
             window.open(url, '_blank');
         }
     </script>
