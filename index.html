@@ -10,9 +10,7 @@
         .loaded { opacity: 1; }
         #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
         .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .item-title { font-weight: bold; font-size: 15px; display: block; margin-bottom: 5px; }
-        .item-desc { font-size: 13px; color: #555; margin-bottom: 10px; white-space: pre-wrap; }
-        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; font-weight: bold; }
+        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
     </style>
 </head>
 <body id="main-body">
@@ -22,30 +20,33 @@
             <p id="system-description" class="description"></p>
             
             <div id="login-fields">
-                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス"></div>
-                <div class="input-group"><input type="password" id="password" placeholder="パスワード"></div>
-                <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
+                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:10px; margin-bottom:10px;">
+                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:10px; margin-bottom:10px;">
+                <button id="loginBtn" class="btn" onclick="login()" style="width:100%;">ログイン</button>
             </div>
 
             <div id="unread-section" style="display: none;">
-                <p id="completion-msg" style="color: #28a745; font-weight: bold; font-size: 16px; margin-bottom: 20px;"></p>
-                <div id="unread-header-area" style="text-align:left; font-size:14px; font-weight:bold; color:#007bff; margin-bottom:10px;">
-                    📍 未読の書類: <span id="badge-area"></span>
-                </div>
+                <h3 style="color:#28a745;">✅ 認証完了</h3>
+                <p id="badge-header" style="font-weight:bold; color:#007bff;">未読数: <span id="badge-area"></span></p>
                 <div id="alert-list"></div>
-                <button id="continueBtn" class="btn" style="background-color: #28a745; margin-top:10px;">メインページへ進む</button>
+                <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:10px;">メインサイトへ</button>
             </div>
-            <p id="message" class="status-message"></p>
+            <p id="message" style="color:red;"></p>
+            
+            <div class="footer-links" id="footer-nav">
+                <a href="signup.html">新規登録</a> | <a href="forgot-password.html">パスワードを忘れた</a>
+            </div>
         </div>
     </div>
 
     <script src="config.js"></script>
     <script>
         let unreadCache = [];
+        let currentUnreadCount = 0;
         let loggedInUserId = "";
         let redirectUrlCache = "";
-        let currentUnreadCount = 0;
 
+        // 初期設定の読み込み
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
             if (res.success && res.data) {
@@ -56,27 +57,33 @@
             document.body.classList.add('loaded');
         };
 
+        // ログイン処理
         async function login() {
             const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) }).then(r => r.json());
+            const res = await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
+            }).then(r => r.json());
+            
             if (res.success) {
                 loggedInUserId = userId;
                 unreadCache = res.data.unreadAlerts || [];
                 redirectUrlCache = res.data.redirectUrl;
+                currentUnreadCount = unreadCache.length;
                 showUI();
             } else {
                 document.getElementById('message').innerText = res.message;
             }
         }
 
+        // ログイン後の画面切り替え
         function showUI() {
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
+            document.getElementById('footer-nav').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
-            document.getElementById('completion-msg').innerText = "✅ 認証を完了しました";
-            currentUnreadCount = unreadCache.length;
-            updateBadgeDisplay();
+            updateBadge();
             if (currentUnreadCount > 0) {
                 document.getElementById('alert-list').style.display = "block";
                 renderList();
@@ -84,29 +91,44 @@
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
         }
 
-        function updateBadgeDisplay() {
+        // バッジ（数字）の更新
+        function updateBadge() {
             const area = document.getElementById('badge-area');
-            area.innerHTML = currentUnreadCount > 0 ? `<span class="unread-badge">${currentUnreadCount}</span>` : `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
+            if (currentUnreadCount > 0) {
+                area.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
+            } else {
+                area.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
+                document.getElementById('badge-header').innerText = "✅ すべての確認が完了しました";
+            }
         }
 
+        // リストの描画
         function renderList() {
             const listDiv = document.getElementById('alert-list');
             listDiv.innerHTML = unreadCache.map((item, i) => `
                 <div class="unread-item" id="item-box-${i}">
-                    <span class="item-title"><span id="icon-${i}">⭕</span> ${item.title}</span>
-                    <p class="item-desc">${item.description || ""}</p>
-                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; background:none; border:none; text-decoration:underline; padding:0;">▶ 内容を確認する</button>
+                    <div style="font-weight:bold;"><span id="icon-${i}">⭕</span> ${item.title}</div>
+                    <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
+                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="color:blue; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">▶ 内容を確認する</button>
                 </div>`).join('');
         }
 
+        // 確認ボタンクリック時の処理
         async function handleCheck(url, id, i) {
             const icon = document.getElementById(`icon-${i}`);
             if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
-            await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+
+            // 1. GASに既読を記録
+            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            
+            // 2. 画面上の表示を即座に変更（バッジ減算）
             icon.innerText = "✅";
             document.getElementById(`item-box-${i}`).style.backgroundColor = "#f0fdf4";
+            document.getElementById(`btn-${i}`).innerText = "確認済み";
             currentUnreadCount--;
-            updateBadgeDisplay();
+            updateBadge();
+            
+            // 3. 別タブでURLを開く
             window.open(url, '_blank');
         }
     </script>
