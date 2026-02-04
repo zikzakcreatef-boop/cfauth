@@ -51,13 +51,13 @@
         let clickedIds = new Set();
         let redirectUrl = "";
 
-        // 起動時に全データを揃えて反映
         window.onload = async function() {
+            // URLパラメータ ?id=XXX を取得
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('id');
             
             try {
-                // 標準設定とコンテンツ情報の取得を並列化
+                // 1. GASから「標準設定」と「指名コンテンツ」を並行して取得
                 const requests = [
                     fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json())
                 ];
@@ -65,33 +65,37 @@
                     requests.push(fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json()));
                 }
 
-                const results = await Promise.all(requests);
-                const configRes = results[0];
-                const contentRes = contentId ? results[1] : null;
+                const [configRes, contentRes] = await Promise.all(requests);
 
                 if (configRes.success) {
                     const config = configRes.data;
+                    // 背景とロゴを反映
                     document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
 
-                    // タイトル・説明文の決定（ID指名を最優先）
+                    // 2. タイトルと説明文の決定（URLオプションを最優先）
                     if (contentRes && contentRes.success) {
+                        // URLに正しいIDがあれば、スプレッドシートのcontentsシートから取得した値をセット
                         document.getElementById('system-title').innerText = contentRes.data.title;
                         document.getElementById('system-description').innerText = contentRes.data.description;
+                        console.log("Option Picked:", contentId);
                     } else {
+                        // オプションがない、または無効な場合は config シートの標準値
                         document.getElementById('system-title').innerText = config.system_title;
                         document.getElementById('system-description').innerText = config.system_description || "";
                     }
-                    localStorage.setItem('cached_system_title', config.system_title);
                 }
             } catch (e) {
-                console.error("Init error", e);
+                console.error("Option Pick Error:", e);
+                document.getElementById('system-title').innerText = "CF認証システム";
             } finally {
                 document.body.classList.add('loaded');
             }
         };
+
+        // --- 以下、昨日えどすんと構築した「閲覧管理」の核心ロジック ---
 
         async function login() {
             const userId = document.getElementById('userId').value;
@@ -108,12 +112,12 @@
                 
                 if (res.success) {
                     loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl;
+                    redirectUrl = res.data.redirectUrl; // 昨日実装した各ユーザー専用のURL
                     document.getElementById('login-form').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
-                    renderUnreadList(res.data.unreadList);
+                    renderUnreadList(res.data.unreadList); // 未読リストの描画
                     document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
                 } else {
                     msg.style.color = "#d93025";
@@ -146,7 +150,7 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
-            // 既読記録（昨日実装したロジックの呼び出し）
+            // 既読をスプレッドシートに記録（昨日の執念のログ記録ロジック）
             fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
