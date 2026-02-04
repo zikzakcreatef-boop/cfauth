@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム</title>
+    <title>CF認証システム Ver 1.02</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; }
         .loaded { opacity: 1; }
         #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
-        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
         .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
+        .details { display: none; margin-top: 10px; padding: 10px; background: #fafafa; border-radius: 4px; }
     </style>
 </head>
 <body id="main-body">
@@ -20,8 +21,8 @@
             <p id="system-description" class="description"></p>
             
             <div id="login-fields">
-                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:10px; margin-bottom:10px;">
-                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:10px; margin-bottom:10px;">
+                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
+                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
                 <button id="loginBtn" class="btn" onclick="login()" style="width:100%;">ログイン</button>
             </div>
 
@@ -46,7 +47,6 @@
         let loggedInUserId = "";
         let redirectUrlCache = "";
 
-        // 初期設定の読み込み
         window.onload = async () => {
             const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
             if (res.success && res.data) {
@@ -57,7 +57,6 @@
             document.body.classList.add('loaded');
         };
 
-        // ログイン処理
         async function login() {
             const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -77,7 +76,6 @@
             }
         }
 
-        // ログイン後の画面切り替え
         function showUI() {
             document.getElementById('login-fields').style.display = "none";
             document.getElementById('system-description').style.display = "none";
@@ -91,7 +89,6 @@
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
         }
 
-        // バッジ（数字）の更新
         function updateBadge() {
             const area = document.getElementById('badge-area');
             if (currentUnreadCount > 0) {
@@ -102,33 +99,40 @@
             }
         }
 
-        // リストの描画
+        function toggleDetails(i) {
+            const el = document.getElementById(`details-${i}`);
+            el.style.display = el.style.display === 'block' ? 'none' : 'block';
+        }
+
         function renderList() {
             const listDiv = document.getElementById('alert-list');
             listDiv.innerHTML = unreadCache.map((item, i) => `
-                <div class="unread-item" id="item-box-${i}">
-                    <div style="font-weight:bold;"><span id="icon-${i}">⭕</span> ${item.title}</div>
-                    <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
-                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="color:blue; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">▶ 内容を確認する</button>
+                <div class="unread-item" onclick="toggleDetails(${i})">
+                    <div style="font-weight:bold; display: flex; justify-content: space-between;">
+                        <span><span id="icon-${i}">⭕</span> ${item.title}</span>
+                        <span>▼</span>
+                    </div>
+                    <div id="details-${i}" class="details">
+                        <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
+                        <button id="btn-${i}" onclick="handleCheck(event, '${item.url}', '${item.id}', ${i})" style="color:blue; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">▶ 内容を確認する</button>
+                    </div>
                 </div>`).join('');
         }
 
-        // 確認ボタンクリック時の処理
-        async function handleCheck(url, id, i) {
+        async function handleCheck(event, url, id, i) {
+            event.stopPropagation(); // 親のtoggleDetails発火を防ぐ
             const icon = document.getElementById(`icon-${i}`);
             if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
 
-            // 1. GASに既読を記録
-            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            // GASに記録
+            await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             
-            // 2. 画面上の表示を即座に変更（バッジ減算）
+            // UI更新
             icon.innerText = "✅";
-            document.getElementById(`item-box-${i}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`btn-${i}`).innerText = "確認済み";
             currentUnreadCount--;
             updateBadge();
             
-            // 3. 別タブでURLを開く
             window.open(url, '_blank');
         }
     </script>
