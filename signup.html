@@ -6,178 +6,103 @@
     <title>新規登録 - CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 完了画面(success-area)専用の追加スタイル */
-        .success-icon {
-            font-size: 64px;
-            color: #28a745;
-            margin-bottom: 20px;
-            display: block;
-        }
-        .step-box {
-            text-align: left;
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            border: 1px solid #eee;
-        }
-        .step-title {
-            font-weight: bold;
-            margin-bottom: 12px;
-            color: #333;
-            font-size: 15px;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
-        .step-item {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #555;
-            line-height: 1.4;
-        }
-        .step-number {
-            background: #007bff;
-            color: #fff;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            font-size: 11px;
-            line-height: 20px;
-            text-align: center;
-            margin-right: 10px;
-            flex-shrink: 0;
-            font-weight: bold;
-        }
-        .exit-btn {
-            margin-top: 10px;
-            width: 100%;
-            background-color: #007bff;
-        }
+        .success-icon { font-size: 64px; color: #28a745; margin-bottom: 20px; display: block; }
+        .step-box { text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 20px 0; border: 1px solid #eee; }
+        .step-title { font-weight: bold; margin-bottom: 12px; color: #333; font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .step-item { display: flex; align-items: flex-start; margin-bottom: 10px; font-size: 14px; color: #555; }
+        .step-num { background: #007bff; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0; }
     </style>
 </head>
-<body id="main-body" style="transition: background 0.5s ease;">
+<body id="main-body">
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            
-            <h2 id="system-display-name">新規利用申請</h2>
-            
-            <div id="signup-form-area">
-                <p class="description">必要事項を入力して申請してください。</p>
-                <div class="input-group">
-                    <input type="text" id="userName" placeholder="お名前" required>
-                </div>
-                <div class="input-group">
-                    <input type="email" id="email" placeholder="メールアドレス" required>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="password" placeholder="希望パスワード" required>
-                </div>
-                <button id="regBtn" class="btn btn-success" onclick="register()">アカウント作成申請</button>
+            <h2><span id="system-name">CF認証システム</span></h2>
+
+            <div id="form-area">
+                <p class="description">アカウント作成の申請を行います。</p>
+                <div class="input-group"><input type="text" id="name" placeholder="お名前" required></div>
+                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
+                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
+                <button id="submitBtn" class="btn btn-primary" onclick="signup()">アカウント作成申請</button>
             </div>
 
-            <div id="success-area" style="display: none;">
-                <span class="success-icon">✓</span>
-                <h3 style="color: #333; margin-bottom: 10px;">申請を受け付けました</h3>
-                <p class="description" style="margin-bottom: 0;">認証メールを送信しました。<br>内容を確認して手続きを進めてください。</p>
-                
+            <div id="success-area" style="display:none;">
+                <span class="success-icon">✉️</span>
+                <h3>申請を受け付けました</h3>
                 <div class="step-box">
                     <div class="step-title">今後の流れ</div>
-                    <div class="step-item">
-                        <div class="step-number">1</div>
-                        <div>メール内のリンクをタップ（認証完了）</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-number">2</div>
-                        <div>管理者による承認後にログイン可能</div>
-                    </div>
+                    <div class="step-item"><div class="step-num">1</div><div>入力したメールアドレスに認証メールが届きます。</div></div>
+                    <div class="step-item"><div class="step-num">2</div><div>メール内のURLをクリックして認証を完了してください。</div></div>
+                    <div class="step-item"><div class="step-num">3</div><div>管理者が確認後、ログイン可能になります。</div></div>
                 </div>
-
-                <button class="btn exit-btn" onclick="location.href='index.html'">
-                    ログイン画面へ戻る
-                </button>
+                <button class="btn btn-success" onclick="location.href='index.html'">ログイン画面へ</button>
             </div>
 
-            <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
-            
-            <div class="footer-links" id="footer-links-area">
-                <a href="index.html" class="back-link">ログイン画面へ戻る</a>
+            <p id="message" class="status-message"></p>
+            <div id="footer-links-area" class="footer-links">
+                <a href="index.html" class="back-link">ログイン画面に戻る</a>
             </div>
         </div>
     </div>
 
     <script src="config.js"></script>
     <script>
-      // UI設定の取得
-      window.onload = async function() {
-          try {
-              const response = await fetch(GAS_URL, { 
-                  method: "POST", 
-                  body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) 
-              });
-              const res = await response.json();
-              if (res.success) {
-                  if (res.data.bgColor) document.body.style.background = res.data.bgColor;
-                  if (res.data.logoUrl && res.data.logoUrl !== "none") {
-                      document.getElementById('logo-container').innerHTML = `<img src="${res.data.logoUrl}" style="max-width: 120px; height: auto;">`;
-                  }
-              }
-          } catch (err) { console.error(err); }
-      };
+        // キャッシュされた設定の反映
+        const cachedTitle = localStorage.getItem('cached_system_title');
+        const cachedBg = localStorage.getItem('cached_bg_color');
+        const cachedLogo = localStorage.getItem('cached_logo_url');
+        if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
+        if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
+        if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
 
-      async function register() {
-        const name = document.getElementById('userName').value;
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const msgDiv = document.getElementById('message');
-        const btn = document.getElementById('regBtn');
-        const formArea = document.getElementById('signup-form-area');
-        const successArea = document.getElementById('success-area');
-        const footerLinks = document.getElementById('footer-links-area');
+        async function signup() {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('submitBtn');
+            const msgDiv = document.getElementById('message');
 
-        if (!name || !email || !password) {
-            msgDiv.style.color = "#d93025";
-            msgDiv.innerText = "全項目入力してください。";
-            return;
+            if (!name || !email || !password) {
+                msgDiv.style.color = "#d93025";
+                msgDiv.innerText = "全項目入力してください。";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "送信中...";
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "signup",
+                        apiKey: API_KEY,
+                        userName: name,   // code.gsの[1]へ
+                        userId: email,    // code.gsの[0]へ
+                        password: password // code.gsの[2]へ
+                    })
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    document.getElementById('form-area').style.display = "none";
+                    document.getElementById('footer-links-area').style.display = "none";
+                    document.getElementById('success-area').style.display = "block";
+                    msgDiv.innerText = "";
+                } else {
+                    msgDiv.style.color = "#d93025";
+                    msgDiv.innerText = res.message;
+                    btn.disabled = false;
+                    btn.innerText = "アカウント作成申請";
+                }
+            } catch (error) {
+                msgDiv.style.color = "#d93025";
+                msgDiv.innerText = "通信エラーが発生しました。";
+                btn.disabled = false;
+                btn.innerText = "アカウント作成申請";
+            }
         }
-
-        btn.disabled = true;
-        btn.innerText = "送信中...";
-        msgDiv.innerText = "";
-
-        try {
-          const response = await fetch(GAS_URL, { 
-              method: "POST", 
-              body: JSON.stringify({ 
-                  action: "signup", 
-                  apiKey: API_KEY, 
-                  userName: name, 
-                  userId: email, 
-                  password: password 
-              }) 
-          });
-          const res = await response.json();
-
-          if (res.success) {
-              formArea.style.display = "none";
-              footerLinks.style.display = "none"; // 下部の重複リンクを隠す
-              successArea.style.display = "block";
-              msgDiv.innerText = "";
-          } else {
-              msgDiv.style.color = "#d93025";
-              msgDiv.innerText = res.message;
-              btn.disabled = false;
-              btn.innerText = "アカウント作成申請";
-          }
-        } catch (error) {
-            msgDiv.style.color = "#d93025";
-            msgDiv.innerText = "通信エラーが発生しました。";
-            btn.disabled = false;
-            btn.innerText = "アカウント作成申請";
-        }
-      }
     </script>
 </body>
 </html>

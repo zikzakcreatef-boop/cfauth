@@ -33,125 +33,118 @@
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h2 id="system-title">Loading...</h2>
-            <p id="system-description" class="description" style="margin-top: -10px; margin-bottom: 20px; white-space: pre-wrap;"></p>
-            
-            <div id="login-fields">
-                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
+
+            <div id="login-form">
+                <div class="input-group"><input type="email" id="userId" placeholder="メールアドレス" required></div>
                 <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
-                <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
-            </div>
-            
-            <div id="unread-section" style="display: none;">
-                <div id="completion-msg" style="color: #28a745; font-weight: bold; margin-bottom: 15px;"></div>
-                
-                <div id="unread-toggle" style="display:none; cursor:pointer; color:#007bff; font-size:14px; margin-bottom:15px; text-decoration:underline;">
-                    他の未読書類を確認する <span id="unread-count-badge" class="unread-badge">0</span>
+                <button class="btn btn-primary" onclick="login()">ログイン</button>
+                <div class="footer-links" style="margin-top: 20px;">
+                    <a href="signup.html">新規登録はこちら</a><br><br>
+                    <a href="forgot-password.html">パスワードを忘れた方</a>
                 </div>
-                
-                <div id="alert-list"></div>
-                <button id="continueBtn" class="btn" style="background-color: #28a745;">メインページへ進む</button>
             </div>
 
-            <div id="message" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
-            
-            <div class="footer-links" id="footer-links">
-                <a href="signup.html" class="back-link">新規申請</a> | <a href="forgot-password.html" class="back-link">パスワードを忘れた</a>
+            <div id="user-panel" style="display:none;">
+                <p class="description">こんにちは、<span id="display-name" style="font-weight:bold;"></span> さん</p>
+                
+                <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">
+                    未読のお知らせ: <span id="unread-count" class="unread-badge">0</span>
+                </div>
+
+                <div id="alert-list"></div>
+
+                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">閲覧サイトへ移動</button>
+                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">ログアウト</button>
             </div>
+
+            <p id="message" class="status-message"></p>
         </div>
     </div>
+
     <script src="config.js"></script>
     <script>
-        let unreadAlertsCache = [];
-        const clickedIds = new Set();
-        let redirectUrlCache = "";
         let loggedInUserId = "";
+        let clickedIds = new Set();
+        let redirectUrl = "";
 
-        window.onload = async function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const contentId = urlParams.get('contentId');
+        window.onload = fetchUIConfig;
+
+        async function fetchUIConfig() {
             try {
-                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentId }) });
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
+                });
                 const res = await response.json();
                 if (res.success) {
-                    document.getElementById('system-title').innerText = res.data.title;
-                    document.getElementById('system-description').innerText = res.data.description;
-                    if (res.data.bgColor) document.body.style.background = res.data.bgColor;
+                    const config = res.data;
+                    document.getElementById('system-title').innerText = config.system_title;
+                    document.body.style.setProperty('background', config.bg_color, 'important');
+                    if (config.logo_url && config.logo_url !== "none") {
+                        document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
+                    }
+                    // キャッシュ保存
+                    localStorage.setItem('cached_system_title', config.system_title);
+                    localStorage.setItem('cached_bg_color', config.bg_color);
+                    localStorage.setItem('cached_logo_url', config.logo_url);
                 }
-            } catch (err) { console.error(err); }
-        };
+            } catch (e) {
+                document.getElementById('system-title').innerText = localStorage.getItem('cached_system_title') || "CF認証システム";
+            }
+        }
 
         async function login() {
-            const email = document.getElementById('email').value;
+            const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            const msgDiv = document.getElementById('message');
-            const btn = document.getElementById('loginBtn');
-            const urlParams = new URLSearchParams(window.location.search);
-            const contentId = urlParams.get('contentId');
-
-            if (!email || !password) return;
-            btn.disabled = true; msgDiv.innerText = "認証中...";
+            const msg = document.getElementById('message');
 
             try {
-                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password, contentId: contentId }) });
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
+                });
                 const res = await response.json();
 
                 if (res.success) {
-                    loggedInUserId = email;
-                    unreadAlertsCache = res.data.unreadAlerts || [];
-                    redirectUrlCache = res.data.redirectUrl;
+                    loggedInUserId = userId;
+                    redirectUrl = res.data.redirectUrl; // GASから返されたURL（個別優先）
+                    
+                    document.getElementById('login-form').style.display = "none";
+                    document.getElementById('user-panel').style.display = "block";
+                    document.getElementById('display-name').innerText = res.data.userName;
+                    msg.innerText = "";
 
-                    document.getElementById('login-fields').style.display = "none";
-                    document.getElementById('footer-links').style.display = "none";
-                    document.getElementById('system-description').style.display = "none";
-                    msgDiv.innerText = "";
+                    renderUnreadList(res.data.unreadList);
+                    
+                    // 閲覧サイト移動ボタンの挙動設定
+                    document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
 
-                    showResultUI();
                 } else {
-                    msgDiv.style.color = "#d93025"; msgDiv.innerText = res.message; btn.disabled = false;
+                    msg.style.color = "#d93025";
+                    msg.innerText = res.message;
                 }
-            } catch (err) { msgDiv.innerText = "エラー発生"; btn.disabled = false; }
-        }
-
-        function showResultUI() {
-            document.getElementById('unread-section').style.display = "block";
-            document.getElementById('completion-msg').innerText = "✅ 閲覧確認が完了しました";
-            
-            if (unreadAlertsCache.length > 0) {
-                updateBadgeDisplay();
-                renderUnreadList();
-                
-                const toggle = document.getElementById('unread-toggle');
-                toggle.style.display = "block";
-                toggle.onclick = () => {
-                    const list = document.getElementById('alert-list');
-                    const isOpening = (list.style.display !== 'block');
-                    list.style.display = isOpening ? 'block' : 'none';
-                    updateBadgeDisplay(); // 開閉時にもテキストを最新化
-                };
-            }
-            document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
-        }
-
-        function updateBadgeDisplay() {
-            const toggle = document.getElementById('unread-toggle');
-            const list = document.getElementById('alert-list');
-            const remainingCount = unreadAlertsCache.length - clickedIds.size;
-            
-            if (list.style.display === 'block') {
-                toggle.innerHTML = `未読リストを閉じる`;
-            } else {
-                if (remainingCount > 0) {
-                    toggle.innerHTML = `他の未読書類を確認する <span class="unread-badge">${remainingCount}</span>`;
-                } else {
-                    toggle.innerHTML = `すべての未読を確認しました <span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-                }
+            } catch (e) {
+                msg.innerText = "通信エラーが発生しました。";
             }
         }
 
-        function renderUnreadList() {
+        function renderUnreadList(list) {
             const listDiv = document.getElementById('alert-list');
+            const countSpan = document.getElementById('unread-count');
             listDiv.innerHTML = "";
-            unreadAlertsCache.forEach((item, index) => {
+            
+            if (!list || list.length === 0) {
+                listDiv.style.display = "none";
+                countSpan.innerText = "0";
+                countSpan.style.background = "#e9ecef";
+                countSpan.style.color = "#6c757d";
+                return;
+            }
+
+            listDiv.style.display = "block";
+            countSpan.innerText = list.length;
+
+            list.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
                 div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
@@ -179,9 +172,10 @@
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
-            
-            // リストが開いている間はバッジの更新は目立たないが、裏でデータは更新しておく
-            // リストを閉じたときに最新の数字が出るようになる
+        }
+
+        function logout() {
+            location.reload();
         }
     </script>
 </body>
