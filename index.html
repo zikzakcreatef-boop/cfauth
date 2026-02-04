@@ -26,13 +26,12 @@
             margin-left: 5px;
             transition: all 0.3s ease;
         }
-        /* 説明文（system_description）用のスタイル */
         .system-desc {
             font-size: 14px;
             color: #666;
             margin-bottom: 24px;
             line-height: 1.6;
-            white-space: pre-wrap; /* 改行を反映 */
+            white-space: pre-wrap;
         }
     </style>
 </head>
@@ -63,9 +62,7 @@
                 <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">
                     未読のお知らせ: <span id="unread-count" class="unread-badge">0</span>
                 </div>
-                
                 <div id="alert-list"></div>
-
                 <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">
                     閲覧サイトへ移動
                 </button>
@@ -85,65 +82,63 @@
         let redirectUrl = "";
 
         window.onload = async function() {
-            // 1. 基本設定の読み込み
+            // 1. UIの基本（背景、ロゴなど）を取得・反映
             await fetchUIConfig();
-            
-            // 2. 【昨日構築した核心】URLパラメータによる指名表示（上書き）
-            const urlParams = new URLSearchParams(window.location.search);
-            const contentId = urlParams.get('id');
-            if (contentId) {
-                try {
-                    const response = await fetch(GAS_URL, {
-                        method: "POST",
-                        body: JSON.stringify({
-                            action: "get_content_info",
-                            apiKey: API_KEY,
-                            contentId: contentId
-                        })
-                    });
-                    const res = await response.json();
-                    if (res.success) {
-                        // configから読み込んだタイトル・説明文を、コンテンツ固有の情報で上書きする
-                        document.getElementById('system-title').innerText = res.data.title;
-                        document.getElementById('system-description').innerText = res.data.description;
-                    }
-                } catch (e) {
-                    console.error("Content fetch error:", e);
-                }
-            }
         };
 
         async function fetchUIConfig() {
-            // キャッシュ表示
+            // URLパラメータのチェック（関数内で行う）
+            const urlParams = new URLSearchParams(window.location.search);
+            const contentId = urlParams.get('id');
+
+            // キャッシュの即時反映
             const cachedTitle = localStorage.getItem('cached_system_title');
             const cachedBg = localStorage.getItem('cached_bg_color');
             const cachedLogo = localStorage.getItem('cached_logo_url');
-            if(cachedTitle) document.getElementById('system-title').innerText = cachedTitle;
+            if(cachedTitle && !contentId) document.getElementById('system-title').innerText = cachedTitle;
             if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
             if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
 
             try {
+                // GASから一括設定取得
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
                 });
                 const res = await response.json();
+                
                 if (res.success) {
                     const config = res.data;
-                    document.getElementById('system-title').innerText = config.system_title;
-                    document.getElementById('system-description').innerText = config.system_description || "";
-                    document.body.style.setProperty('background', config.bg_color, 'important');
                     
+                    // 背景とロゴは常に標準設定を反映
+                    document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
-                    
-                    localStorage.setItem('cached_system_title', config.system_title);
                     localStorage.setItem('cached_bg_color', config.bg_color);
                     localStorage.setItem('cached_logo_url', config.logo_url);
+                    localStorage.setItem('cached_system_title', config.system_title);
+
+                    // ID指名がある場合は、コンテンツ情報を優先的に取得して上書き
+                    if (contentId) {
+                        const cResponse = await fetch(GAS_URL, {
+                            method: "POST",
+                            body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId })
+                        });
+                        const cRes = await cResponse.json();
+                        if (cRes.success) {
+                            document.getElementById('system-title').innerText = cRes.data.title;
+                            document.getElementById('system-description').innerText = cRes.data.description;
+                            return; // 標準タイトルの反映をスキップして終了
+                        }
+                    }
+
+                    // ID指名がない場合、またはコンテンツ取得失敗時は標準を表示
+                    document.getElementById('system-title').innerText = config.system_title;
+                    document.getElementById('system-description').innerText = config.system_description || "";
                 }
             } catch (e) {
-                console.error("Config load error");
+                console.error("UI Config Fetch Error");
             }
         }
 
@@ -160,55 +155,34 @@
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({
-                        action: "login",
-                        apiKey: API_KEY,
-                        userId: userId,
-                        password: password
-                    })
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: userId, password: password })
                 });
                 const res = await response.json();
 
                 if (res.success) {
                     loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl; // code.gsから返されるURL
-                    
+                    redirectUrl = res.data.redirectUrl;
                     document.getElementById('login-form').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
                     msg.innerText = "";
-
-                    // 未読リストの描画
                     renderUnreadList(res.data.unreadList);
-
-                    // 閲覧サイトへのボタン設定
-                    document.getElementById('entry-btn').onclick = () => {
-                        window.location.href = redirectUrl;
-                    };
+                    document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
                 } else {
                     msg.style.color = "#d93025";
-                    msg.innerText = res.message; // 承認待ち等のメッセージ
+                    msg.innerText = res.message;
                 }
-            } catch (error) {
-                msg.innerText = "通信エラーが発生しました。";
-            }
+            } catch (error) { msg.innerText = "通信エラーが発生しました。"; }
         }
 
         function renderUnreadList(list) {
             const listDiv = document.getElementById('alert-list');
             const countSpan = document.getElementById('unread-count');
             listDiv.innerHTML = "";
-
-            if (!list || list.length === 0) {
-                listDiv.style.display = "none";
-                countSpan.innerText = "0";
-                return;
-            }
-
+            if (!list || list.length === 0) { listDiv.style.display = "none"; countSpan.innerText = "0"; return; }
             listDiv.style.display = "block";
             countSpan.innerText = list.length;
-
             list.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
@@ -226,33 +200,15 @@
 
         async function handleLinkClick(event, url, index, id) {
             if(event) event.preventDefault();
-            
-            // 閲覧用リンクを別タブで開く
             window.open(url, '_blank');
-
-            // 既にクリック済みなら何もしない
             if (clickedIds.has(id)) return;
-
-            // GAS側に既読を記録
-            fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({
-                    action: "record_read",
-                    apiKey: API_KEY,
-                    userId: loggedInUserId,
-                    contentId: id
-                })
-            });
-
-            // UIの更新
+            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
 
-        function logout() {
-            location.reload();
-        }
+        function logout() { location.reload(); }
     </script>
 </body>
 </html>
