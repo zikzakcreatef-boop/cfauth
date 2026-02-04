@@ -6,40 +6,18 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        #alert-list {
-            display: none;
-            text-align: left;
-            margin: 15px 0;
-            max-height: 250px;
-            overflow-y: auto;
-            border-top: 1px solid #eee;
-            padding-top: 10px;
-        }
-        .unread-badge {
-            display: inline-block;
-            background: #f8d7da;
-            color: #721c24;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 5px;
-            transition: all 0.3s ease;
-        }
-        .system-desc {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 24px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-        }
+        body { opacity: 0; transition: opacity 0.3s; }
+        .loaded { opacity: 1; }
+        #alert-list { display: none; text-align: left; margin: 15px 0; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 10px; }
+        .unread-badge { display: inline-block; background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
+        .system-desc { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; white-space: pre-wrap; }
     </style>
 </head>
-<body id="main-body" style="transition: background 0.5s ease;">
+<body id="main-body">
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            <h2 id="system-title" style="margin-bottom: 8px;">Loading...</h2>
+            <h2 id="system-title">Loading...</h2>
             <div id="system-description" class="system-desc"></div>
 
             <div id="login-form">
@@ -50,7 +28,6 @@
                     <input type="password" id="password" placeholder="パスワード" required>
                 </div>
                 <button class="btn btn-primary" onclick="login()">ログイン</button>
-                
                 <div class="footer-links" style="margin-top: 20px;">
                     <a href="signup.html">新規登録はこちら</a><br><br>
                     <a href="forgot-password.html">パスワードを忘れた方</a>
@@ -59,18 +36,11 @@
 
             <div id="user-panel" style="display:none;">
                 <p class="description">こんにちは、<span id="display-name" style="font-weight:bold;"></span> さん</p>
-                <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">
-                    未読のお知らせ: <span id="unread-count" class="unread-badge">0</span>
-                </div>
+                <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">未読のお知らせ: <span id="unread-count" class="unread-badge">0</span></div>
                 <div id="alert-list"></div>
-                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">
-                    閲覧サイトへ移動
-                </button>
-                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">
-                    ログアウト
-                </button>
+                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">閲覧サイトへ移動</button>
+                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">ログアウト</button>
             </div>
-
             <p id="message" class="status-message"></p>
         </div>
     </div>
@@ -81,93 +51,68 @@
         let clickedIds = new Set();
         let redirectUrl = "";
 
+        // 起動時に全データを揃えて反映
         window.onload = async function() {
-            // 起動時に最優先でUIを構築する
-            await initUI();
-        };
-
-        async function initUI() {
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('id');
-
-            // 1. キャッシュの即時反映（ID指定がない時だけタイトルを表示）
-            const cachedBg = localStorage.getItem('cached_bg_color');
-            const cachedLogo = localStorage.getItem('cached_logo_url');
-            if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
-            if(cachedLogo && cachedLogo !== "none") {
-                document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
-            }
-
+            
             try {
-                // 2. GASから基本設定（config）とコンテンツ情報（id指定時）を同時に取得
-                // 複数のリクエストを並行実行して、最終的な表示を決定する
-                const configPromise = fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
-                }).then(r => r.json());
-
-                let contentPromise = Promise.resolve({ success: false });
+                // 標準設定とコンテンツ情報の取得を並列化
+                const requests = [
+                    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json())
+                ];
                 if (contentId) {
-                    contentPromise = fetch(GAS_URL, {
-                        method: "POST",
-                        body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId })
-                    }).then(r => r.json());
+                    requests.push(fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json()));
                 }
 
-                const [configRes, contentRes] = await Promise.all([configPromise, contentPromise]);
+                const results = await Promise.all(requests);
+                const configRes = results[0];
+                const contentRes = contentId ? results[1] : null;
 
-                // 3. 基本UI（背景・ロゴ）の反映
                 if (configRes.success) {
                     const config = configRes.data;
                     document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
-                    localStorage.setItem('cached_bg_color', config.bg_color);
-                    localStorage.setItem('cached_logo_url', config.logo_url);
-                    localStorage.setItem('cached_system_title', config.system_title);
 
-                    // 4. 【核心】タイトルと説明文の確定
-                    // コンテンツ指名(contentRes)が成功していればそれを使い、そうでなければ標準configを使う
-                    if (contentRes.success) {
+                    // タイトル・説明文の決定（ID指名を最優先）
+                    if (contentRes && contentRes.success) {
                         document.getElementById('system-title').innerText = contentRes.data.title;
                         document.getElementById('system-description').innerText = contentRes.data.description;
                     } else {
                         document.getElementById('system-title').innerText = config.system_title;
                         document.getElementById('system-description').innerText = config.system_description || "";
                     }
+                    localStorage.setItem('cached_system_title', config.system_title);
                 }
             } catch (e) {
-                console.error("UI Init Error:", e);
-                document.getElementById('system-title').innerText = "CF認証システム";
+                console.error("Init error", e);
+            } finally {
+                document.body.classList.add('loaded');
             }
-        }
+        };
 
         async function login() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
             const msg = document.getElementById('message');
-            
-            if (!userId || !password) {
-                msg.innerText = "IDとパスワードを入力してください。";
-                return;
-            }
+            if (!userId || !password) { msg.innerText = "IDとパスワードを入力してください。"; return; }
 
             try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
+                const response = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
                 });
                 const res = await response.json();
-
+                
                 if (res.success) {
                     loggedInUserId = userId;
                     redirectUrl = res.data.redirectUrl;
                     document.getElementById('login-form').style.display = "none";
-                    document.getElementById('system-description').style.display = "none"; // ログイン後は説明を隠す
+                    document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
-                    msg.innerText = "";
                     renderUnreadList(res.data.unreadList);
                     document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
                 } else {
@@ -191,9 +136,7 @@
                 div.innerHTML = `
                     <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
                     <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
-                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">
-                       ▶ 内容を確認する
-                    </div>
+                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>
                 `;
                 listDiv.appendChild(div);
             });
@@ -203,6 +146,7 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
+            // 既読記録（昨日実装したロジックの呼び出し）
             fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
