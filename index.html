@@ -41,13 +41,17 @@
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h2 id="system-title" style="margin-bottom: 8px;">Loading...</h2>
-            
             <div id="system-description" class="system-desc"></div>
 
             <div id="login-form">
-                <div class="input-group"><input type="email" id="userId" placeholder="メールアドレス" required></div>
-                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
+                <div class="input-group">
+                    <input type="email" id="userId" placeholder="メールアドレス" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="パスワード" required>
+                </div>
                 <button class="btn btn-primary" onclick="login()">ログイン</button>
+                
                 <div class="footer-links" style="margin-top: 20px;">
                     <a href="signup.html">新規登録はこちら</a><br><br>
                     <a href="forgot-password.html">パスワードを忘れた方</a>
@@ -59,9 +63,15 @@
                 <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">
                     未読のお知らせ: <span id="unread-count" class="unread-badge">0</span>
                 </div>
+                
                 <div id="alert-list"></div>
-                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">閲覧サイトへ移動</button>
-                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">ログアウト</button>
+
+                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">
+                    閲覧サイトへ移動
+                </button>
+                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">
+                    ログアウト
+                </button>
             </div>
 
             <p id="message" class="status-message"></p>
@@ -74,10 +84,37 @@
         let clickedIds = new Set();
         let redirectUrl = "";
 
-        window.onload = fetchUIConfig;
+        window.onload = async function() {
+            // 1. 基本設定の読み込み
+            await fetchUIConfig();
+            
+            // 2. 【昨日構築した核心】URLパラメータによる指名表示（上書き）
+            const urlParams = new URLSearchParams(window.location.search);
+            const contentId = urlParams.get('id');
+            if (contentId) {
+                try {
+                    const response = await fetch(GAS_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            action: "get_content_info",
+                            apiKey: API_KEY,
+                            contentId: contentId
+                        })
+                    });
+                    const res = await response.json();
+                    if (res.success) {
+                        // configから読み込んだタイトル・説明文を、コンテンツ固有の情報で上書きする
+                        document.getElementById('system-title').innerText = res.data.title;
+                        document.getElementById('system-description').innerText = res.data.description;
+                    }
+                } catch (e) {
+                    console.error("Content fetch error:", e);
+                }
+            }
+        };
 
         async function fetchUIConfig() {
-            // キャッシュがあれば即座に反映（ガタつき防止）
+            // キャッシュ表示
             const cachedTitle = localStorage.getItem('cached_system_title');
             const cachedBg = localStorage.getItem('cached_bg_color');
             const cachedLogo = localStorage.getItem('cached_logo_url');
@@ -94,21 +131,19 @@
                 if (res.success) {
                     const config = res.data;
                     document.getElementById('system-title').innerText = config.system_title;
-                    
-                    // 【復活】GAS経由でスプレッドシートの説明文をセット
                     document.getElementById('system-description').innerText = config.system_description || "";
-                    
                     document.body.style.setProperty('background', config.bg_color, 'important');
+                    
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
-                    // キャッシュ更新
+                    
                     localStorage.setItem('cached_system_title', config.system_title);
                     localStorage.setItem('cached_bg_color', config.bg_color);
                     localStorage.setItem('cached_logo_url', config.logo_url);
                 }
             } catch (e) {
-                console.error("Config fetch error:", e);
+                console.error("Config load error");
             }
         }
 
@@ -116,32 +151,46 @@
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
             const msg = document.getElementById('message');
+            
+            if (!userId || !password) {
+                msg.innerText = "IDとパスワードを入力してください。";
+                return;
+            }
 
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
+                    body: JSON.stringify({
+                        action: "login",
+                        apiKey: API_KEY,
+                        userId: userId,
+                        password: password
+                    })
                 });
                 const res = await response.json();
 
                 if (res.success) {
                     loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl; 
+                    redirectUrl = res.data.redirectUrl; // code.gsから返されるURL
                     
                     document.getElementById('login-form').style.display = "none";
-                    // ログイン後は説明文を隠してパネルを広く使う
                     document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
                     msg.innerText = "";
 
+                    // 未読リストの描画
                     renderUnreadList(res.data.unreadList);
-                    document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
+
+                    // 閲覧サイトへのボタン設定
+                    document.getElementById('entry-btn').onclick = () => {
+                        window.location.href = redirectUrl;
+                    };
                 } else {
                     msg.style.color = "#d93025";
-                    msg.innerText = res.message;
+                    msg.innerText = res.message; // 承認待ち等のメッセージ
                 }
-            } catch (e) {
+            } catch (error) {
                 msg.innerText = "通信エラーが発生しました。";
             }
         }
@@ -150,21 +199,24 @@
             const listDiv = document.getElementById('alert-list');
             const countSpan = document.getElementById('unread-count');
             listDiv.innerHTML = "";
+
             if (!list || list.length === 0) {
                 listDiv.style.display = "none";
                 countSpan.innerText = "0";
                 return;
             }
+
             listDiv.style.display = "block";
             countSpan.innerText = list.length;
+
             list.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
                 div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
                 div.innerHTML = `
-                    <div style="font-weight:bold;"><span id=\"status-icon-${index}\">⭕</span> ${item.title}</div>
-                    <div style=\"color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;\" 
-                         onclick=\"handleLinkClick(event, '${item.url}', '${index}', '${item.id}')\">
+                    <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
+                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
+                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">
                        ▶ 内容を確認する
                     </div>
                 `;
@@ -174,18 +226,33 @@
 
         async function handleLinkClick(event, url, index, id) {
             if(event) event.preventDefault();
+            
+            // 閲覧用リンクを別タブで開く
             window.open(url, '_blank');
+
+            // 既にクリック済みなら何もしない
             if (clickedIds.has(id)) return;
+
+            // GAS側に既読を記録
             fetch(GAS_URL, {
                 method: "POST",
-                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
+                body: JSON.stringify({
+                    action: "record_read",
+                    apiKey: API_KEY,
+                    userId: loggedInUserId,
+                    contentId: id
+                })
             });
+
+            // UIの更新
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
 
-        function logout() { location.reload(); }
+        function logout() {
+            location.reload();
+        }
     </script>
 </body>
 </html>
