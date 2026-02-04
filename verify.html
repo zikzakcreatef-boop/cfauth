@@ -12,20 +12,16 @@
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h3><span id="system-name">CF認証システム</span></h3>
             <p id="verify-msg" class="description">メール認証を確認しています...</p>
-            
             <div id="status-display" class="status-message" style="margin-top: 20px; font-weight: bold;"></div>
-            
             <div class="footer-links">
                 <p id="redirect-msg" style="display:none;">5秒後にログイン画面へ戻ります...</p>
                 <a href="index.html" class="back-link">ログイン画面へ戻る</a>
             </div>
         </div>
     </div>
-
     <script src="config.js"></script>
     <script>
         window.onload = async function() {
-            // ローカルストレージからの着せ替え反映
             const cachedTitle = localStorage.getItem('cached_system_title');
             const cachedBg = localStorage.getItem('cached_bg_color');
             const cachedLogo = localStorage.getItem('cached_logo_url');
@@ -34,7 +30,6 @@
             if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
 
             const urlParams = new URLSearchParams(window.location.search);
-            // code.gsのhandleSignupで生成するURLパラメータ(?user=...)に合わせる
             const userId = urlParams.get('user');
             const msgDiv = document.getElementById('status-display');
             const verifyMsg = document.getElementById('verify-msg');
@@ -42,33 +37,24 @@
             if (!userId) {
                 msgDiv.style.color = "#d93025";
                 msgDiv.innerText = "無効な認証URLです。";
-                verifyMsg.innerText = "エラー";
                 return;
             }
 
             try {
-                // code.gs の action: "verify_email" を呼び出す
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({
-                        action: "verify_email",
-                        apiKey: API_KEY,
-                        userId: userId
-                    })
+                    body: JSON.stringify({ action: "verify_email", apiKey: API_KEY, userId: userId })
                 });
                 const res = await response.json();
-
                 if (res.success) {
                     verifyMsg.innerText = "メール認証が完了しました！";
                     msgDiv.style.color = "#28a745";
-                    msgDiv.innerText = "管理者の承認完了後、ログインいただけます。";
+                    msgDiv.innerText = "管理者の承認をお待ちください。承認後にログイン可能となります。";
                     document.getElementById('redirect-msg').style.display = "block";
-                    // 5秒後に自動でログイン画面へ
                     setTimeout(() => { window.location.href = "index.html"; }, 5000);
                 } else {
                     msgDiv.style.color = "#d93025";
                     msgDiv.innerText = res.message;
-                    verifyMsg.innerText = "認証に失敗しました";
                 }
             } catch (err) {
                 msgDiv.style.color = "#d93025";
