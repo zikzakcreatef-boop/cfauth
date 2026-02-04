@@ -6,9 +6,19 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 確定まで隠蔽し、描画の整合性を保証する */
-        body { opacity: 0; }
-        .loaded { opacity: 1; transition: opacity 0.3s; }
+        /* 1. 読み込み完了まで隠す機能（機能維持） */
+        body { opacity: 0; margin: 0; transition: opacity 0.3s; }
+        .loaded { opacity: 1; }
+
+        /* 2. 背景色に依存せず「入力エリア」を識別可能にするための最小限の措置 */
+        .form-box {
+            background-color: rgba(255, 255, 255, 0.95); /* 設定色を透かしつつ、文字の可読性を確保 */
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        /* お知らせリストのスタイル（昨日からの機能を維持） */
         #alert-list { display: none; text-align: left; margin: 15px 0; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 10px; }
         .unread-badge { display: inline-block; background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
         .system-desc { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; white-space: pre-wrap; }
@@ -50,85 +60,84 @@
 
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
-            // 本来のパラメータ名 'contentId' に統一
-            const contentIdParam = urlParams.get('contentId');
+            // パラメータ名を contentId に固定
+            const cId = urlParams.get('contentId');
             
             try {
-                // 標準設定と指名コンテンツを並列で取得
                 const [configRes, contentRes] = await Promise.all([
-                    fetch(GAS_URL, { method: \"POST\", body: JSON.stringify({ action: \"get_ui_config\", apiKey: API_KEY }) }).then(r => r.json()),
-                    contentIdParam ? fetch(GAS_URL, { method: \"POST\", body: JSON.stringify({ action: \"get_content_info\", apiKey: API_KEY, contentId: contentIdParam }) }).then(r => r.json()) : Promise.resolve({ success: false })
+                    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json()),
+                    cId ? fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: cId }) }).then(r => r.json()) : Promise.resolve({ success: false })
                 ]);
 
                 if (configRes.success) {
                     const config = configRes.data;
-                    document.body.style.setProperty('background', config.bg_color, 'important');
-                    if (config.logo_url && config.logo_url !== \"none\") {
-                        document.getElementById('logo-container').innerHTML = `<img src=\"${config.logo_url}\" style=\"max-width: 120px; height: auto;\">`;
+                    
+                    // 【修復】config シートの bg_color を最優先で body に適用
+                    if (config.bg_color) {
+                        document.body.style.backgroundColor = config.bg_color;
+                        // 背景画像として指定されている可能性も考慮し property で設定
+                        document.body.style.setProperty('background', config.bg_color, 'important');
                     }
 
-                    // タイトル・説明文の反映ロジック
+                    if (config.logo_url && config.logo_url !== "none") {
+                        document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
+                    }
+
+                    // タイトル・説明文の反映（contentId優先）
                     if (contentRes.success && contentRes.data) {
                         document.getElementById('system-title').innerText = contentRes.data.title;
                         document.getElementById('system-description').innerText = contentRes.data.description;
-                        console.log(\"Content ID matched and applied:\", contentIdParam);
                     } else {
                         document.getElementById('system-title').innerText = config.system_title;
-                        document.getElementById('system-description').innerText = config.system_description || \"\";
+                        document.getElementById('system-description').innerText = config.system_description || "";
                     }
                 }
             } catch (e) {
-                console.error(\"Initialization Error:\", e);
-                document.getElementById('system-title').innerText = \"CF認証システム\";
+                console.error("Init Error", e);
             } finally {
                 document.body.classList.add('loaded');
             }
         };
 
+        // --- ログイン・既読管理ロジック（現在値を完全維持） ---
         async function login() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
             const msg = document.getElementById('message');
-            if (!userId || !password) { msg.innerText = \"IDとパスワードを入力してください。\"; return; }
+            if (!userId || !password) { msg.innerText = "IDとパスワードを入力してください。"; return; }
 
             try {
-                const response = await fetch(GAS_URL, { 
-                    method: \"POST\", 
-                    body: JSON.stringify({ action: \"login\", apiKey: API_KEY, userId, password }) 
-                });
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) });
                 const res = await response.json();
                 if (res.success) {
                     loggedInUserId = userId;
                     redirectUrl = res.data.redirectUrl;
-                    document.getElementById('login-form').style.display = \"none\";
-                    document.getElementById('system-description').style.display = \"none\";
-                    document.getElementById('user-panel').style.display = \"block\";
+                    document.getElementById('login-form').style.display = "none";
+                    document.getElementById('system-description').style.display = "none";
+                    document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
                     renderUnreadList(res.data.unreadList);
                     document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
                 } else {
-                    msg.style.color = \"#d93025\";
+                    msg.style.color = "#d93025";
                     msg.innerText = res.message;
                 }
-            } catch (error) { msg.innerText = \"通信エラーが発生しました。\"; }
+            } catch (error) { msg.innerText = "通信エラーが発生しました。"; }
         }
 
         function renderUnreadList(list) {
             const listDiv = document.getElementById('alert-list');
             const countSpan = document.getElementById('unread-count');
-            listDiv.innerHTML = \"\";
-            if (!list || list.length === 0) { listDiv.style.display = \"none\"; countSpan.innerText = \"0\"; return; }
-            listDiv.style.display = \"block\";
+            listDiv.innerHTML = "";
+            if (!list || list.length === 0) { listDiv.style.display = "none"; countSpan.innerText = "0"; return; }
+            listDiv.style.display = "block";
             countSpan.innerText = list.length;
             list.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
-                div.style.cssText = \"padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;\";
-                div.innerHTML = `
-                    <div style=\"font-weight:bold;\"><span id=\"status-icon-${index}\">⭕</span> ${item.title}</div>
-                    <div style=\"color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;\" 
-                         onclick=\"handleLinkClick(event, '${item.url}', '${index}', '${item.id}')\">▶ 内容を確認する</div>
-                `;
+                div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
+                div.innerHTML = `<div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
+                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>`;
                 listDiv.appendChild(div);
             });
         }
@@ -137,12 +146,11 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
-            fetch(GAS_URL, { method: \"POST\", body: JSON.stringify({ action: \"record_read\", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
-            document.getElementById(`item-${index}`).style.backgroundColor = \"#f0fdf4\";
-            document.getElementById(`status-icon-${index}`).innerText = \"✅\";
+            document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
+            document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
-
         function logout() { location.reload(); }
     </script>
 </body>
