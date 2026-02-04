@@ -8,40 +8,32 @@
     <style>
         body { opacity: 0; margin: 0; transition: opacity 0.3s; }
         .loaded { opacity: 1; }
-        .form-box { background-color: rgba(255, 255, 255, 0.95); padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
-        .unread-badge { display: inline-block; background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
-        .system-desc { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; white-space: pre-wrap; }
-        
-        /* アコーディオン用スタイル */
-        .unread-item { border: 1px solid #eee; border-radius: 6px; margin-bottom: 8px; background: #fafafa; overflow: hidden; }
-        .unread-header { padding: 12px; cursor: pointer; font-weight: bold; background: #fff; display: flex; justify-content: space-between; }
-        .unread-content { display: none; padding: 12px; border-top: 1px solid #eee; background: #fdfdfd; font-size: 13px; color: #666; line-height: 1.5; }
+        #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; max-height: 300px; overflow-y: auto; }
+        .unread-item { padding:12px; border-bottom:1px solid #eee; background:#fafafa; border-radius:6px; margin-bottom:8px; }
+        .unread-header { display: flex; justify-content: space-between; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .unread-content { display: none; padding: 10px 5px; font-size: 13px; color: #444; }
+        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px; }
     </style>
 </head>
 <body id="main-body">
     <div class="container">
         <div class="form-box">
-            <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h2 id="system-title">Loading...</h2>
-            <div id="system-description" class="system-desc"></div>
-
-            <div id="login-form">
-                <div class="input-group"><input type="email" id="userId" placeholder="メールアドレス" required></div>
-                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
-                <button class="btn btn-primary" onclick="login()">ログイン</button>
-                <div class="footer-links" style="margin-top: 20px;">
-                    <a href="signup.html">新規登録はこちら</a><br><br>
-                    <a href="forgot-password.html">パスワードを忘れた方</a>
-                </div>
+            <p id="system-description" class="description"></p>
+            
+            <div id="login-fields">
+                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス"></div>
+                <div class="input-group"><input type="password" id="password" placeholder="パスワード"></div>
+                <button id="loginBtn" class="btn" onclick="login()">ログイン</button>
             </div>
 
-            <div id="user-panel" style="display:none;">
-                <p class="description">こんにちは、<span id="display-name" style="font-weight:bold;"></span> さん</p>
-                <div id="unread-info" style="margin-bottom: 15px; font-size: 14px;">未読のお知らせ: <span id="unread-count" class="unread-badge">0</span></div>
+            <div id="unread-section" style="display: none;">
+                <p id="completion-msg" style="color: #28a745; font-weight: bold;"></p>
+                <div id="unread-toggle" style="display:none; cursor:pointer; color:#007bff; font-size:14px; margin:15px 0; text-decoration:underline;">
+                    他の未読書類を確認する <span id="badge-area"></span>
+                </div>
                 <div id="alert-list"></div>
-                <button id="entry-btn" class="btn btn-success" style="width:100%; margin-top:10px;">閲覧サイトへ移動</button>
-                <button class="btn btn-secondary" onclick="logout()" style="width:100%; margin-top:10px; background:#6c757d;">ログアウト</button>
+                <button id="continueBtn" class="btn" style="background-color: #28a745; margin-top:10px;">メインページへ進む</button>
             </div>
             <p id="message" class="status-message"></p>
         </div>
@@ -49,94 +41,92 @@
 
     <script src="config.js"></script>
     <script>
+        let unreadCache = [];
         let loggedInUserId = "";
-        let clickedIds = new Set();
-        let redirectUrl = "";
+        let redirectUrlCache = "";
 
-        window.onload = async function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const cId = urlParams.get('contentId');
-            try {
-                const [configRes, contentRes] = await Promise.all([
-                    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json()),
-                    cId ? fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: cId }) }).then(r => r.json()) : Promise.resolve({ success: false })
-                ]);
-                if (configRes.success) {
-                    const config = configRes.data;
-                    if (config.bg_color) {
-                        document.body.style.backgroundColor = config.bg_color;
-                        document.body.style.setProperty('background', config.bg_color, 'important');
-                    }
-                    if (config.logo_url && config.logo_url !== "none") {
-                        document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
-                    }
-                    document.getElementById('system-title').innerText = (contentRes.success && contentRes.data) ? contentRes.data.title : config.system_title;
-                    document.getElementById('system-description').innerText = (contentRes.success && contentRes.data) ? contentRes.data.description : (config.system_description || "");
-                }
-            } finally { document.body.classList.add('loaded'); }
+        window.onload = async () => {
+            const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
+            if (res.success) {
+                document.getElementById('system-title').innerText = res.data.system_title;
+                document.getElementById('system-description').innerText = res.data.system_description;
+                if (res.data.bg_color) document.body.style.backgroundColor = res.data.bg_color;
+            }
+            document.body.classList.add('loaded');
         };
 
         async function login() {
-            const userId = document.getElementById('userId').value;
+            const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const msg = document.getElementById('message');
-            if (!userId || !password) { msg.innerText = "IDとパスワードを入力してください。"; return; }
-            try {
-                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) });
-                const res = await response.json();
-                if (res.success) {
-                    loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl;
-                    document.getElementById('login-form').style.display = "none";
-                    document.getElementById('system-description').style.display = "none";
-                    document.getElementById('user-panel').style.display = "block";
-                    document.getElementById('display-name').innerText = res.data.userName;
-                    renderUnreadList(res.data.unreadList);
-                    document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
-                } else { msg.style.color = "#d93025"; msg.innerText = res.message; }
-            } catch (error) { msg.innerText = "通信エラーが発生しました。"; }
+            const contentId = new URLSearchParams(window.location.search).get('contentId');
+            
+            const res = await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password, contentId }) 
+            }).then(r => r.json());
+
+            if (res.success) {
+                loggedInUserId = userId;
+                unreadCache = res.data.unreadAlerts || [];
+                redirectUrlCache = res.data.redirectUrl;
+                showUI();
+            } else {
+                document.getElementById('message').innerText = res.message;
+            }
         }
 
-        function renderUnreadList(list) {
+        function showUI() {
+            document.getElementById('login-fields').style.display = "none";
+            document.getElementById('system-description').style.display = "none";
+            document.getElementById('unread-section').style.display = "block";
+            document.getElementById('completion-msg').innerText = "✅ 認証が完了しました";
+            
+            if (unreadCache.length > 0) {
+                const toggle = document.getElementById('unread-toggle');
+                toggle.style.display = "block";
+                document.getElementById('badge-area').innerHTML = `<span class="unread-badge">${unreadCache.length}</span>`;
+                renderList();
+                toggle.onclick = () => {
+                    const list = document.getElementById('alert-list');
+                    list.style.display = (list.style.display === 'block') ? 'none' : 'block';
+                };
+            }
+            document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
+        }
+
+        function renderList() {
             const listDiv = document.getElementById('alert-list');
-            const countSpan = document.getElementById('unread-count');
             listDiv.innerHTML = "";
-            if (!list || list.length === 0) { listDiv.style.display = "none"; countSpan.innerText = "0"; return; }
-            listDiv.style.display = "block";
-            countSpan.innerText = list.length;
-            list.forEach((item, index) => {
+            unreadCache.forEach((item, i) => {
                 const div = document.createElement('div');
                 div.className = "unread-item";
                 div.innerHTML = `
-                    <div class="unread-header" onclick="toggleAccordion(${index})">
-                        <span><span id="status-icon-${index}">⭕</span> ${item.title}</span>
+                    <div class="unread-header" onclick="toggleAcc(${i})">
+                        <span><span id="icon-${i}">⭕</span> ${item.title}</span>
                         <span>▼</span>
                     </div>
-                    <div id="content-${index}" class="unread-content">
-                        <p style="white-space: pre-wrap; margin-bottom:10px;">${item.description || "詳細はありません。"}</p>
-                        <div style="color:#007bff; text-decoration:underline; cursor:pointer; font-size:12px;" 
-                             onclick="handleLinkClick(event, '${item.url}', ${index}, '${item.id}')">▶ 内容を確認してサイトへ移動</div>
+                    <div id="acc-${i}" class="unread-content">
+                        <p>${item.description || "詳細なし"}</p>
+                        <button onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="font-size:12px; color:blue; cursor:pointer; border:none; background:none; text-decoration:underline;">▶ 内容を確認する</button>
                     </div>`;
                 listDiv.appendChild(div);
             });
         }
 
-        function toggleAccordion(index) {
-            const content = document.getElementById(`content-${index}`);
-            content.style.display = (content.style.display === "block") ? "none" : "block";
+        function toggleAcc(i) {
+            const el = document.getElementById(`acc-${i}`);
+            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
         }
 
-        async function handleLinkClick(event, url, index, id) {
-            if(event) event.preventDefault();
+        async function handleCheck(url, id, i) {
+            // 先にGASへ記録（awaitで完了を待つ）
+            await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
+            });
+            document.getElementById(`icon-${i}`).innerText = "✅";
             window.open(url, '_blank');
-            if (clickedIds.has(id)) return;
-            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
-            clickedIds.add(id);
-            document.getElementById(`status-icon-${index}`).innerText = "✅";
-            document.querySelectorAll('.unread-header')[index].style.color = "#999";
         }
-
-        function logout() { location.reload(); }
     </script>
 </body>
 </html>
