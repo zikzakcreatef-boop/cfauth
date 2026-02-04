@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.08</title>
+    <title>CF認証システム Ver 1.09</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -46,17 +46,16 @@
         let currentUnreadCount = 0;
         let loggedInUserId = "";
         let redirectUrlCache = "";
+        let autoReadId = "";
 
-        // URLからcontentIdを取得
         const urlParams = new URLSearchParams(window.location.search);
-        const contentIdParam = urlParams.get('contentId');
+        autoReadId = urlParams.get('contentId');
 
         window.onload = async () => {
             try {
-                // contentIdをパラメータに含めて設定を取得
                 const res = await fetch(GAS_URL, { 
                     method: "POST", 
-                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentIdParam }) 
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: autoReadId }) 
                 }).then(r => r.json());
                 
                 if (res.success && res.data) {
@@ -71,33 +70,56 @@
         async function login() {
             const userId = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const res = await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
-            }).then(r => r.json());
-            
-            if (res.success) {
-                loggedInUserId = userId;
-                unreadCache = res.data.unreadAlerts || [];
-                redirectUrlCache = res.data.redirectUrl;
-                currentUnreadCount = unreadCache.length;
-                showUnreadUI();
-            } else {
-                document.getElementById('message').innerText = res.message;
+            const msg = document.getElementById('message');
+            msg.innerText = "認証中...";
+
+            try {
+                const res = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
+                }).then(r => r.json());
+                
+                if (res.success) {
+                    msg.innerText = "";
+                    loggedInUserId = userId;
+                    unreadCache = res.data.unreadAlerts || [];
+                    redirectUrlCache = res.data.redirectUrl;
+                    
+                    // 【新機能】contentIdがあれば即座に既読通信を飛ばす
+                    if (autoReadId) {
+                        await fetch(GAS_URL, { 
+                            method: "POST", 
+                            body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: autoReadId }) 
+                        });
+                        // リスト内の該当アイテムを既読扱いに設定
+                        unreadCache.forEach(item => {
+                            if (String(item.id) === String(autoReadId)) item.isAutoRead = true;
+                        });
+                    }
+
+                    // バッジカウント計算：(全未読) - (自動既読分がリストに含まれていれば1)
+                    const hasAutoReadInList = unreadCache.some(item => item.isAutoRead);
+                    currentUnreadCount = hasAutoReadInList ? unreadCache.length - 1 : unreadCache.length;
+                    
+                    showUnreadUI();
+                } else {
+                    msg.innerText = res.message;
+                }
+            } catch (e) {
+                msg.innerText = "通信エラーが発生しました。";
             }
         }
 
         function showUnreadUI() {
             document.getElementById('login-fields').style.display = "none";
-            // ログイン後も、もしcontentId由来のタイトルならそれを維持、そうでなければ説明を消す
-            if (!contentIdParam) {
+            if (!autoReadId) {
                 document.getElementById('system-description').style.display = "none";
             }
             document.getElementById('footer-nav').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
             
             updateBadge();
-            if (currentUnreadCount > 0) {
+            if (unreadCache.length > 0) {
                 document.getElementById('alert-list').style.display = "block";
                 renderList();
             }
@@ -110,33 +132,49 @@
                 area.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
             } else {
                 area.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-                document.getElementById('badge-header').innerText = "✅ すべて確認済みです";
+                document.getElementById('badge-header').innerHTML = "✅ すべての内容を確認しました";
             }
         }
 
         function renderList() {
             const listDiv = document.getElementById('alert-list');
-            listDiv.innerHTML = unreadCache.map((item, i) => `
-                <div class="unread-item">
-                    <div style="font-weight:bold;"><span id="icon-${i}">⭕</span> ${item.title}</div>
+            listDiv.innerHTML = unreadCache.map((item, i) => {
+                const isDone = item.isAutoRead === true;
+                return `
+                <div class="unread-item" style="${isDone ? 'opacity: 0.8; background: #f9f9f9;' : ''}">
+                    <div style="font-weight:bold;">
+                        <span id="icon-${i}">${isDone ? '✅' : '⭕'}</span> ${item.title}
+                    </div>
                     <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
-                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" style="color:blue; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">▶ 内容を確認する</button>
-                </div>`).join('');
+                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" 
+                            style="color:${isDone ? '#666' : 'blue'}; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">
+                        ${isDone ? '確認済み（再表示）' : '▶ 内容を確認する'}
+                    </button>
+                </div>`;
+            }).join('');
         }
 
         async function handleCheck(url, id, i) {
             const icon = document.getElementById(`icon-${i}`);
-            if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
-
-            await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
-            });
+            const btn = document.getElementById(`btn-${i}`);
             
-            icon.innerText = "✅";
-            document.getElementById(`btn-${i}`).innerText = "確認済み";
-            currentUnreadCount--;
-            updateBadge();
+            if (icon.innerText === "✅") {
+                window.open(url, '_blank');
+                return;
+            }
+
+            try {
+                await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
+                });
+                icon.innerText = "✅";
+                btn.innerText = "確認済み（再表示）";
+                btn.style.color = "#666";
+                currentUnreadCount--;
+                updateBadge();
+            } catch (e) { console.error(e); }
+            
             window.open(url, '_blank');
         }
     </script>
