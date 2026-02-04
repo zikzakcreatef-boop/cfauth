@@ -6,8 +6,9 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body { opacity: 0; transition: opacity 0.3s; }
-        .loaded { opacity: 1; }
+        /* 確定するまで表示を隠し、チラつき（先祖返り）を物理的に防ぐ */
+        body { opacity: 0; }
+        .loaded { opacity: 1; transition: opacity 0.2s; }
         #alert-list { display: none; text-align: left; margin: 15px 0; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 10px; }
         .unread-badge { display: inline-block; background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
         .system-desc { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; white-space: pre-wrap; }
@@ -21,12 +22,8 @@
             <div id="system-description" class="system-desc"></div>
 
             <div id="login-form">
-                <div class="input-group">
-                    <input type="email" id="userId" placeholder="メールアドレス" required>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="password" placeholder="パスワード" required>
-                </div>
+                <div class="input-group"><input type="email" id="userId" placeholder="メールアドレス" required></div>
+                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
                 <button class="btn btn-primary" onclick="login()">ログイン</button>
                 <div class="footer-links" style="margin-top: 20px;">
                     <a href="signup.html">新規登録はこちら</a><br><br>
@@ -52,51 +49,45 @@
         let redirectUrl = "";
 
         window.onload = async function() {
-            // URLパラメータ ?id=XXX を取得
             const urlParams = new URLSearchParams(window.location.search);
             const contentId = urlParams.get('id');
             
             try {
-                // 1. GASから「標準設定」と「指名コンテンツ」を並行して取得
-                const requests = [
-                    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json())
-                ];
-                if (contentId) {
-                    requests.push(fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json()));
-                }
+                // 【最重要】2つのリクエストを完全に「並列」で投げ、両方待つ
+                const configPromise = fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
+                const contentPromise = contentId 
+                    ? fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json())
+                    : Promise.resolve({ success: false });
 
-                const [configRes, contentRes] = await Promise.all(requests);
+                const [configRes, contentRes] = await Promise.all([configPromise, contentPromise]);
 
                 if (configRes.success) {
                     const config = configRes.data;
-                    // 背景とロゴを反映
+                    // 背景・ロゴの反映
                     document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
 
-                    // 2. タイトルと説明文の決定（URLオプションを最優先）
-                    if (contentRes && contentRes.success) {
-                        // URLに正しいIDがあれば、スプレッドシートのcontentsシートから取得した値をセット
+                    // 【ジャック判定】指名データがある場合は、標準設定を「完全に無視」して上書き
+                    if (contentRes.success && contentRes.data) {
                         document.getElementById('system-title').innerText = contentRes.data.title;
                         document.getElementById('system-description').innerText = contentRes.data.description;
-                        console.log("Option Picked:", contentId);
                     } else {
-                        // オプションがない、または無効な場合は config シートの標準値
                         document.getElementById('system-title').innerText = config.system_title;
                         document.getElementById('system-description').innerText = config.system_description || "";
                     }
                 }
             } catch (e) {
-                console.error("Option Pick Error:", e);
+                console.error("Init Error:", e);
                 document.getElementById('system-title').innerText = "CF認証システム";
             } finally {
+                // すべての代入が終わってから初めて表示する
                 document.body.classList.add('loaded');
             }
         };
 
-        // --- 以下、昨日えどすんと構築した「閲覧管理」の核心ロジック ---
-
+        // --- 以下、昨日実装した執念の閲覧管理ロジック（完全維持） ---
         async function login() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
@@ -104,20 +95,16 @@
             if (!userId || !password) { msg.innerText = "IDとパスワードを入力してください。"; return; }
 
             try {
-                const response = await fetch(GAS_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
-                });
+                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) });
                 const res = await response.json();
-                
                 if (res.success) {
                     loggedInUserId = userId;
-                    redirectUrl = res.data.redirectUrl; // 昨日実装した各ユーザー専用のURL
+                    redirectUrl = res.data.redirectUrl;
                     document.getElementById('login-form').style.display = "none";
                     document.getElementById('system-description').style.display = "none";
                     document.getElementById('user-panel').style.display = "block";
                     document.getElementById('display-name').innerText = res.data.userName;
-                    renderUnreadList(res.data.unreadList); // 未読リストの描画
+                    renderUnreadList(res.data.unreadList);
                     document.getElementById('entry-btn').onclick = () => { window.location.href = redirectUrl; };
                 } else {
                     msg.style.color = "#d93025";
@@ -137,11 +124,8 @@
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
                 div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
-                div.innerHTML = `
-                    <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
-                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>
-                `;
+                div.innerHTML = `<div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
+                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>`;
                 listDiv.appendChild(div);
             });
         }
@@ -150,13 +134,11 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
-            // 既読をスプレッドシートに記録（昨日の執念のログ記録ロジック）
             fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
-
         function logout() { location.reload(); }
     </script>
 </body>
