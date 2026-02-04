@@ -6,9 +6,9 @@
     <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 確定するまで表示を隠し、チラつき（先祖返り）を物理的に防ぐ */
+        /* 描画のチラつき（一瞬デフォルトが出る現象）を物理的に防ぐ */
         body { opacity: 0; }
-        .loaded { opacity: 1; transition: opacity 0.2s; }
+        .loaded { opacity: 1; transition: opacity 0.3s; }
         #alert-list { display: none; text-align: left; margin: 15px 0; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 10px; }
         .unread-badge { display: inline-block; background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
         .system-desc { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.6; white-space: pre-wrap; }
@@ -53,23 +53,23 @@
             const contentId = urlParams.get('id');
             
             try {
-                // 【最重要】2つのリクエストを完全に「並列」で投げ、両方待つ
-                const configPromise = fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json());
-                const contentPromise = contentId 
-                    ? fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json())
-                    : Promise.resolve({ success: false });
-
-                const [configRes, contentRes] = await Promise.all([configPromise, contentPromise]);
+                // 1. 標準設定と指名コンテンツ情報を同時にリクエストし、両方が揃うのを待つ
+                const [configRes, contentRes] = await Promise.all([
+                    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY }) }).then(r => r.json()),
+                    contentId ? fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_content_info", apiKey: API_KEY, contentId: contentId }) }).then(r => r.json()) : Promise.resolve({ success: false })
+                ]);
 
                 if (configRes.success) {
                     const config = configRes.data;
-                    // 背景・ロゴの反映
+                    
+                    // 背景とロゴの反映（これは共通）
                     document.body.style.setProperty('background', config.bg_color, 'important');
                     if (config.logo_url && config.logo_url !== "none") {
                         document.getElementById('logo-container').innerHTML = `<img src="${config.logo_url}" style="max-width: 120px; height: auto;">`;
                     }
 
-                    // 【ジャック判定】指名データがある場合は、標準設定を「完全に無視」して上書き
+                    // 2. タイトルと説明文の決定（URLオプションを最優先）
+                    // contentRes.data が存在する場合のみ上書き。なければ config の標準値を採用。
                     if (contentRes.success && contentRes.data) {
                         document.getElementById('system-title').innerText = contentRes.data.title;
                         document.getElementById('system-description').innerText = contentRes.data.description;
@@ -79,15 +79,16 @@
                     }
                 }
             } catch (e) {
-                console.error("Init Error:", e);
+                console.error("Initialization Error:", e);
                 document.getElementById('system-title').innerText = "CF認証システム";
             } finally {
-                // すべての代入が終わってから初めて表示する
+                // すべての代入が終わった瞬間に、透明度を戻して表示する
                 document.body.classList.add('loaded');
             }
         };
 
-        // --- 以下、昨日実装した執念の閲覧管理ロジック（完全維持） ---
+        // --- 以下、昨日実装した執念の閲覧管理・既読ログロジック ---
+
         async function login() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
@@ -95,8 +96,12 @@
             if (!userId || !password) { msg.innerText = "IDとパスワードを入力してください。"; return; }
 
             try {
-                const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) });
+                const response = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
+                });
                 const res = await response.json();
+                
                 if (res.success) {
                     loggedInUserId = userId;
                     redirectUrl = res.data.redirectUrl;
@@ -124,8 +129,11 @@
                 const div = document.createElement('div');
                 div.id = `item-${index}`;
                 div.style.cssText = "padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; background:#fafafa; border-radius:6px; font-size:14px;";
-                div.innerHTML = `<div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
-                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>`;
+                div.innerHTML = `
+                    <div style="font-weight:bold;"><span id="status-icon-${index}">⭕</span> ${item.title}</div>
+                    <div style="color:#007bff; font-size:12px; cursor:pointer; text-decoration:underline; margin-top:5px;" 
+                         onclick="handleLinkClick(event, '${item.url}', '${index}', '${item.id}')">▶ 内容を確認する</div>
+                `;
                 listDiv.appendChild(div);
             });
         }
@@ -134,11 +142,13 @@
             if(event) event.preventDefault();
             window.open(url, '_blank');
             if (clickedIds.has(id)) return;
-            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
+            // 昨日実装した既読記録アクション
+            fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: apiKey, userId: loggedInUserId, contentId: id }) });
             clickedIds.add(id);
             document.getElementById(`item-${index}`).style.backgroundColor = "#f0fdf4";
             document.getElementById(`status-icon-${index}`).innerText = "✅";
         }
+
         function logout() { location.reload(); }
     </script>
 </body>
