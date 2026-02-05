@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.21</title>
+    <title>CF認証システム1.22</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -22,94 +22,103 @@
             <p id="display-desc"></p>
             <input type="email" id="userId" placeholder="メールアドレス">
             <input type="password" id="password" placeholder="パスワード">
-            <button class="btn btn-primary" onclick="handleLogin()">ログイン</button>
+            <button class="btn" onclick="handleLogin()">ログイン</button>
+            <p id="login-msg" style="color:#d93025; margin-top:10px;"></p>
             <div class="footer-links">
-                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
+                <a href="signup.html">新規利用申請</a> | <a href="forgot_password.html">パスワードを忘れた方</a>
             </div>
         </div>
     </div>
 
-    <div class="container" id="content-area" style="display:none;">
-        <h3>こんにちは、<span id="user-name-disp"></span>さん</h3>
-        <p>未読のコンテンツがあります：</p>
-        <div id="unread-list"></div>
-        <button class="btn" style="margin-top:20px;" onclick="handleLogout()">ログアウト</button>
+    <div class="container" id="main-area" style="display:none;">
+        <div class="form-box" style="max-width:600px;">
+            <h2>こんにちは、<span id="user-name-display"></span> さん</h2>
+            <p>未読のコンテンツがあります。確認してください。</p>
+            
+            <div id="unread-list"></div>
+
+            <button class="btn btn-secondary" style="margin-top:20px;" onclick="handleLogout()">ログアウト</button>
+        </div>
     </div>
 
-    <script src="config.js"></script>
     <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_7O2M-jH_3X88W8iM6Qh8-e7lI5_X9X0rWvD6p-z0_H_D_9X_/exec';
+        const API_KEY = 'Z2VtX21heF8yMDI2X3NlY3VyZQ==';
         let loggedInUserId = localStorage.getItem('loggedInUserId');
 
-        window.onload = async function() {
+        window.onload = async () => {
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
                 });
                 const config = await response.json();
-                document.getElementById('display-title').innerText = config.system_title;
-                document.getElementById('display-desc').innerText = config.system_description;
-                document.body.style.backgroundColor = config.bg_color;
-                
-                if (loggedInUserId) {
-                    showContents();
-                } else {
-                    document.getElementById('login-area').style.display = 'block';
-                    document.getElementById('loading-screen').style.display = 'none';
-                    document.body.classList.add('loaded');
+                if (config.success) {
+                    document.getElementById('display-title').innerText = config.system_title;
+                    document.getElementById('display-desc').innerText = config.system_description;
+                    document.body.style.backgroundColor = config.bg_color;
                 }
-            } catch (e) {
-                console.error("Initialization Error:", e);
-                document.getElementById('loading-screen').innerText = "接続エラーが発生しました。";
+            } catch (e) { console.error(e); }
+
+            if (loggedInUserId) {
+                showMainArea();
+            } else {
+                document.getElementById('login-area').style.display = 'block';
+                document.getElementById('loading-screen').style.display = 'none';
+                document.body.classList.add('loaded');
             }
         };
 
         async function handleLogin() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            const screen = document.getElementById('loading-screen');
-
-            if(!userId || !password) { alert("入力してください"); return; }
-            screen.style.display = 'flex';
+            const msg = document.getElementById('login-msg');
 
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: userId, password: password })
                 });
                 const res = await response.json();
+
                 if (res.success) {
                     localStorage.setItem('loggedInUserId', userId);
                     localStorage.setItem('userName', res.userName);
-                    window.location.href = res.redirectUrl;
+                    localStorage.setItem('redirectUrl', res.redirectUrl);
+                    loggedInUserId = userId;
+                    showMainArea();
                 } else {
-                    alert(res.message);
-                    screen.style.display = 'none';
+                    msg.innerText = res.message;
                 }
             } catch (e) {
-                alert("通信エラー");
-                screen.style.display = 'none';
+                msg.innerText = "通信エラーが発生しました。";
             }
         }
 
-        async function showContents() {
-            const userName = localStorage.getItem('userName');
-            document.getElementById('user-name-disp').innerText = userName;
-            document.getElementById('content-area').style.display = 'block';
+        function showMainArea() {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('main-area').style.display = 'block';
+            document.getElementById('user-name-display').innerText = localStorage.getItem('userName');
             document.getElementById('loading-screen').style.display = 'none';
             document.body.classList.add('loaded');
-            
+            showContents();
+        }
+
+        async function showContents() {
+            const listDiv = document.getElementById('unread-list');
+            listDiv.innerHTML = "読み込み中...";
+
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_unread", apiKey: API_KEY, userId: loggedInUserId })
                 });
                 const data = await response.json();
-                const listDiv = document.getElementById('unread-list');
-                listDiv.innerHTML = "";
 
+                listDiv.innerHTML = "";
                 if (!data.contents || data.contents.length === 0) {
-                    listDiv.innerHTML = "<p>未読はありません。最新の状態です。</p>";
+                    const redirectUrl = localStorage.getItem('redirectUrl');
+                    window.location.href = redirectUrl || "https://www.yahoo.co.jp/";
                 } else {
                     data.contents.forEach(item => {
                         const div = document.createElement('div');
@@ -125,6 +134,7 @@
                 }
             } catch (e) {
                 console.error("Fetch Content Error:", e);
+                listDiv.innerHTML = "エラーが発生しました。";
             }
         }
 
