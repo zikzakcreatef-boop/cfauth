@@ -8,10 +8,7 @@
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
-        
-        /* リストアイテム：タイトルのみに合わせてパディングを微調整 */
         .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
         
         #accordion-trigger {
             width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px;
@@ -38,14 +35,11 @@
 
             <div id="unread-section" style="display: none;">
                 <h3 style="color:#28a745;">✅ 認証完了</h3>
-                
                 <div id="main-confirmed-area"></div>
-                
                 <div id="accordion-trigger" onclick="toggleAccordion()">
                     <span id="accordion-label"></span>
                 </div>
                 <div id="alert-list"></div>
-
                 <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:20px;">メインサイトへ</button>
             </div>
             
@@ -119,8 +113,8 @@
 
         function showUnreadUI() {
             document.getElementById('login-fields').style.display = "none";
-            // ログイン後は全体のdescriptionは非表示にする
-            if (!autoReadId) document.getElementById('system-description').style.display = "none";
+            // 【修正】ログイン後は常にシステム説明文(2行目)を非表示にする
+            document.getElementById('system-description').style.display = "none";
             document.getElementById('footer-nav').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
             
@@ -140,7 +134,6 @@
 
             unreadCache.forEach((item, i) => {
                 const isMain = item.isAutoRead === true;
-                // 【修正】descriptionを完全に削除し、タイトルとボタンだけの構成に変更
                 const html = `
                     <div class="unread-item" style="${isMain ? 'background: #f0fff4; border-left: 5px solid #28a745;' : ''}">
                         <div style="font-weight:bold; margin-bottom: 8px;">
@@ -197,7 +190,6 @@
                 btn.innerText = "確認済み（再表示）";
                 btn.style.color = "#666";
                 
-                // カウントダウンとラベルの即時同期
                 currentUnreadCount--;
                 updateAccordionLabel();
             } catch (e) { console.error(e); }
