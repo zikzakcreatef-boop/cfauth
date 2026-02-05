@@ -3,17 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.10</title>
+    <title>CF認証システム Ver 1.11</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
-        
-        /* リストスタイル */
         .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
         
-        /* アコーディオン制御 */
         #accordion-trigger {
             width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px;
             cursor: pointer; font-weight: bold; color: #555; margin-top: 15px; text-align: center;
@@ -22,8 +19,6 @@
         #accordion-trigger:hover { background: #e9ecef; }
         #alert-list { display: none; text-align: left; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px; }
         #alert-list.active { display: block; }
-        
-        /* メインの自動既読アイテム用 */
         #main-confirmed-area { margin-bottom: 20px; }
     </style>
 </head>
@@ -45,7 +40,7 @@
                 <div id="main-confirmed-area"></div>
                 
                 <div id="accordion-trigger" onclick="toggleAccordion()">
-                    <span id="accordion-label">他の未読を確認する</span> ▼
+                    <span id="accordion-label"></span>
                 </div>
                 <div id="alert-list"></div>
 
@@ -127,6 +122,7 @@
             document.getElementById('unread-section').style.display = "block";
             
             renderHybridList();
+            updateAccordionLabel();
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
         }
 
@@ -154,31 +150,39 @@
                     </div>`;
 
                 if (isMain) {
-                    mainHtml = html; // 今回の目的（2028）
+                    mainHtml = html;
                 } else {
-                    otherListHtml += html; // 他の未読
+                    otherListHtml += html;
                     otherCount++;
                 }
             });
 
             mainArea.innerHTML = mainHtml;
             listDiv.innerHTML = otherListHtml;
+            if (otherCount > 0) { trigger.style.display = "block"; }
+        }
 
-            if (otherCount > 0) {
-                trigger.style.display = "block";
-                document.getElementById('accordion-label').innerText = `他に未読が ${otherCount} 件あります`;
+        function updateAccordionLabel() {
+            const label = document.getElementById('accordion-label');
+            const list = document.getElementById('alert-list');
+            const isExpanded = list.classList.contains('active');
+            
+            if (currentUnreadCount > 0) {
+                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${currentUnreadCount} 件あります ▼`;
+            } else {
+                label.innerText = "✅ 他の未読はすべて確認済みです";
             }
         }
 
         function toggleAccordion() {
             const list = document.getElementById('alert-list');
-            const trigger = document.getElementById('accordion-trigger');
             list.classList.toggle('active');
-            trigger.innerHTML = list.classList.contains('active') ? "リストを閉じる ▲" : `他に未読が ${currentUnreadCount} 件あります ▼`;
+            updateAccordionLabel();
         }
 
         async function handleCheck(url, id, i) {
             const icon = document.getElementById(`icon-${i}`);
+            const btn = document.getElementById(`btn-${i}`);
             if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
 
             try {
@@ -187,9 +191,12 @@
                     body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
                 });
                 icon.innerText = "✅";
-                document.getElementById(`btn-${i}`).innerText = "確認済み";
-                document.getElementById(`btn-${i}`).style.color = "#666";
-                // アコーディオンラベルのカウント更新は必要に応じてここで行う
+                btn.innerText = "確認済み（再表示）";
+                btn.style.color = "#666";
+                
+                // カウントダウンとラベルの即時同期
+                currentUnreadCount--;
+                updateAccordionLabel();
             } catch (e) { console.error(e); }
             window.open(url, '_blank');
         }
