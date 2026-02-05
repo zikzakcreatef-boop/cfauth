@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム 1.24</title>
+    <title>CF認証システム1.25</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -50,26 +50,25 @@
         let finalRedirectUrl = "";
 
         window.onload = async function() {
-            const cachedTitle = localStorage.getItem('cached_system_title');
-            if (cachedTitle) document.getElementById('display-title').innerText = cachedTitle;
-            
-            // すでにログイン情報があるかチェック
-            const savedUser = localStorage.getItem('userId');
-            if (savedUser) {
-                // 既にログイン済みならコンテンツエリアを表示（再取得はせず保存データを利用するか、必要なら再ログインを促す）
-                showLoginArea(); 
-            } else {
-                showLoginArea();
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    document.getElementById('display-title').innerText = res.data.title;
+                    document.getElementById('display-desc').innerText = res.data.description;
+                    if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
+                }
+            } catch (e) {
+                console.error("Config Load Error:", e);
+            } finally {
+                document.getElementById('login-area').style.display = 'block';
+                document.getElementById('loading-screen').style.display = 'none';
+                document.body.classList.add('loaded');
             }
-            
-            document.body.classList.add('loaded');
-            document.getElementById('loading-screen').style.display = 'none';
         };
-
-        function showLoginArea() {
-            document.getElementById('login-area').style.display = 'block';
-            document.getElementById('content-area').style.display = 'none';
-        }
 
         async function handleLogin() {
             const userId = document.getElementById('userId').value;
@@ -96,11 +95,6 @@
                 if (res.success) {
                     loggedInUserId = userId;
                     finalRedirectUrl = res.data.redirectUrl;
-                    
-                    // 状態保存
-                    localStorage.setItem('userId', userId);
-                    localStorage.setItem('userName', res.data.userName);
-                    
                     renderContentArea(res.data.userName, res.data.unreadAlerts);
                 } else {
                     errorMsg.innerText = res.message;
@@ -122,7 +116,7 @@
             const listDiv = document.getElementById('unread-list');
             listDiv.innerHTML = "";
 
-            if (unreadList.length === 0) {
+            if (!unreadList || unreadList.length === 0) {
                 listDiv.innerHTML = "<p>未読の重要なお知らせはありません。</p>";
                 document.getElementById('goMainBtn').disabled = false;
             } else {
@@ -131,7 +125,7 @@
                     div.className = 'unread-item';
                     div.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
+                            <div style="text-align:left;">
                                 <strong>${item.title}</strong><br>
                                 <small style="color:#666;">${item.description}</small>
                             </div>
@@ -140,8 +134,6 @@
                     `;
                     listDiv.appendChild(div);
                 });
-                // 未読がある場合は「メインサイトへ進む」を無効化（すべて読むまで進ませない場合）
-                // 進ませても良い場合は disabled を false にしてください
                 document.getElementById('goMainBtn').disabled = true;
                 document.getElementById('goMainBtn').innerText = "未読を確認してください";
             }
@@ -154,8 +146,6 @@
                     body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
                 });
                 window.open(url, '_blank');
-                
-                // 閲覧完了後、リストから消すために再ログイン相当の処理を内部で呼ぶか、リロード
                 alert("閲覧を記録しました。");
                 location.reload(); 
             } catch (e) {
