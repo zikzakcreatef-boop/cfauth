@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.34</title>
+    <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -72,13 +72,13 @@
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // ログイン画面の動的書き換え：res.titleが指定記事のものであることを前提に反映
+                    // v1.11の絶対ルール：GASから来たタイトルと説明文でログイン画面を即時上書き
                     document.getElementById('display-title').innerText = res.title;
                     document.getElementById('display-desc').innerText = res.description || "";
                     if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
                 }
             } catch (e) {
-                console.error("Config Error:", e);
+                console.error("Config Error");
             } finally {
                 document.getElementById('login-area').style.display = 'block';
                 document.getElementById('loading-screen').style.display = 'none';
@@ -140,27 +140,29 @@
                 return;
             }
 
-            let hasMatch = false;
+            let matchFound = false;
             let otherCount = 0;
 
+            // v1.11準拠：targetContentIdとの一致判定と物理的な振り分け
             unreadList.forEach(item => {
                 if (targetContentId && String(item.id) === String(targetContentId)) {
                     renderItem(item, mainContainer, "main");
-                    hasMatch = true;
+                    matchFound = true;
                 } else {
                     renderItem(item, alertList, otherCount);
                     otherCount++;
                 }
             });
 
-            // 振り分け後のUI制御
-            if (hasMatch) {
-                // パラメータ一致あり：アコーディオンは閉じる
+            // v1.11の挙動：オプション一致がある場合は、残りのリストを畳んでおく
+            if (matchFound) {
                 trigger.style.display = (otherCount > 0) ? "block" : "none";
+                alertList.style.display = "none";
                 alertList.classList.remove('active');
             } else {
-                // パラメータなし：アコーディオンは最初から開く
+                // オプションなし：全件表示、アコーディオンは最初から展開
                 trigger.style.display = "block";
+                alertList.style.display = "block";
                 alertList.classList.add('active');
             }
 
@@ -200,7 +202,6 @@
                 btn.innerText = "確認済み";
                 btn.style.color = "#666";
                 btn.style.textDecoration = "none";
-                
                 refreshLabelsAfterClick();
                 window.open(url, '_blank');
             } catch (e) {
@@ -226,7 +227,9 @@
         }
 
         function toggleAccordion() {
-            document.getElementById('alert-list').classList.toggle('active');
+            const list = document.getElementById('alert-list');
+            const isNowActive = list.classList.toggle('active');
+            list.style.display = isNowActive ? "block" : "none";
             refreshLabelsAfterClick();
         }
 
