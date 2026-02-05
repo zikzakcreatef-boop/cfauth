@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.31</title>
+    <title>CF認証システム</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -13,9 +13,8 @@
         #accordion-trigger {
             width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px;
             cursor: pointer; font-weight: bold; color: #555; margin-top: 15px; text-align: center;
-            transition: background 0.2s; display: none;
+            display: none;
         }
-        #accordion-trigger:hover { background: #e9ecef; }
         #alert-list { display: none; text-align: left; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px; }
         #alert-list.active { display: block; }
         
@@ -24,9 +23,7 @@
         .btn-main { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; font-weight: bold; }
         .btn-main:disabled { background: #ccc; cursor: not-allowed; }
         
-        /* v1.11準拠：テキストリンク */
         .content-link { color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; font-weight: normal; background: none; border: none; padding: 0; }
-        .content-link:hover { color: #0056b3; }
         .check-icon { color: #28a745; font-weight: bold; margin-right: 8px; }
     </style>
 </head>
@@ -41,23 +38,17 @@
             <input type="password" id="password" placeholder="パスワード" required>
             <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">ログイン</button>
             <p id="errorMsg" style="color:red; margin-top:10px;"></p>
-            <div class="footer-links">
-                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
-            </div>
         </div>
     </div>
 
     <div class="container" id="content-area" style="display:none;">
         <div class="form-box">
             <div class="welcome-msg" id="welcome-user"></div>
-            
             <div id="main-unread-container"></div>
-
             <div id="accordion-trigger" onclick="toggleAccordion()">
                 <span id="accordion-label"></span>
             </div>
             <div id="alert-list"></div>
-
             <hr style="margin-top:20px; border:0; border-top:1px solid #eee;">
             <button id="goMainBtn" class="btn-main" onclick="goToMain()">メインサイトへ進む</button>
             <button class="btn btn-secondary" style="margin-top:10px;" onclick="handleLogout()">ログアウト</button>
@@ -68,23 +59,22 @@
     <script>
         let loggedInUserId = "";
         let finalRedirectUrl = "";
-        let currentUnreadCount = 0;
         let targetContentId = "";
 
+        // 1. ログイン前の動的書き換え（v1.11ロジック）
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
             targetContentId = urlParams.get('id');
 
             try {
-                // v1.11準拠：IDがあれば記事情報、なければデフォルトUI情報を取得
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: targetContentId })
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // ここで確実にタイトルと説明文を差し替える
-                    document.getElementById('display-title').innerText = res.title || "ログイン";
+                    // ここが修正点：IDがあれば記事タイトルに、なければシステム名に物理的に書き換え
+                    document.getElementById('display-title').innerText = res.title;
                     document.getElementById('display-desc').innerText = res.description || "";
                     if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
                 }
@@ -134,6 +124,7 @@
             }
         }
 
+        // 2. 抽出と畳み込みの完全再現（v1.11ロジック）
         function renderContentArea(userName, unreadList) {
             document.getElementById('login-area').style.display = 'none';
             document.getElementById('content-area').style.display = 'block';
@@ -145,63 +136,66 @@
             
             mainContainer.innerHTML = "";
             alertList.innerHTML = "";
-            currentUnreadCount = unreadList ? unreadList.length : 0;
 
-            if (currentUnreadCount === 0) {
+            if (!unreadList || unreadList.length === 0) {
                 mainContainer.innerHTML = "<p>未読の重要なお知らせはありません。</p>";
                 trigger.style.display = "none";
                 updateMainButton(true);
                 return;
             }
 
-            let matchIndex = -1;
-            if (targetContentId) {
-                matchIndex = unreadList.findIndex(item => String(item.id) === String(targetContentId));
-            }
+            let matchItem = null;
+            let otherItems = [];
 
-            // v1.11準拠：オプション一致時の「抽出」と「初期畳み込み」
-            if (matchIndex !== -1) {
-                unreadList.forEach((item, index) => {
-                    if (index === matchIndex) {
-                        renderItem(item, mainContainer, index);
-                    } else {
-                        renderItem(item, alertList, index);
-                    }
-                });
-                trigger.style.display = (unreadList.length > 1) ? "block" : "none";
-                alertList.classList.remove('active'); // 最初は閉じる
+            // 振り分け処理
+            unreadList.forEach(item => {
+                if (targetContentId && String(item.id) === String(targetContentId)) {
+                    matchItem = item;
+                } else {
+                    otherItems.push(item);
+                }
+            });
+
+            // 描画実行
+            if (matchItem) {
+                // 一致あり：メインへ
+                renderItem(matchItem, mainContainer, "main");
+                otherItems.forEach((item, i) => renderItem(item, alertList, i));
+                
+                // 一致がある場合、アコーディオンは初期状態で「閉じ」
+                trigger.style.display = (otherItems.length > 0) ? "block" : "none";
+                alertList.classList.remove('active');
             } else {
-                // 一致なし：全件アコーディオン、最初から「開く」
-                unreadList.forEach((item, index) => {
-                    renderItem(item, alertList, index);
-                });
+                // 一致なし：全件アコーディオンへ
+                unreadList.forEach((item, i) => renderItem(item, alertList, i));
+                
+                // 一致がない場合、アコーディオンは初期状態で「開き」
                 trigger.style.display = "block";
-                alertList.classList.add('active'); // 最初から開く
+                alertList.classList.add('active');
             }
 
-            updateMainButton(currentUnreadCount <= 0);
-            updateAccordionLabel();
+            refreshLabels();
         }
 
-        function renderItem(item, container, index) {
+        function renderItem(item, container, idSuffix) {
             const div = document.createElement('div');
             div.className = 'unread-item';
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="text-align:left;">
-                        <span id="icon-${index}" class="check-icon"></span>
+                        <span id="icon-${idSuffix}" class="check-icon"></span>
                         <strong>${item.title}</strong>
                     </div>
-                    <button class="content-link" id="btn-${index}" 
-                        onclick="openContent('${item.url}', '${item.id}', ${index})">▶ 内容を確認する</button>
+                    <button class="content-link" id="btn-${idSuffix}" 
+                        onclick="openContent('${item.url}', '${item.id}', '${idSuffix}')">▶ 内容を確認する</button>
                 </div>
             `;
             container.appendChild(div);
         }
 
-        async function openContent(url, id, index) {
-            const btn = document.getElementById(`btn-${index}`);
-            const icon = document.getElementById(`icon-${index}`);
+        async function openContent(url, id, idSuffix) {
+            const btn = document.getElementById(`btn-${idSuffix}`);
+            const icon = document.getElementById(`icon-${idSuffix}`);
             
             if (icon.innerText === "✅") {
                 window.open(url, '_blank');
@@ -220,10 +214,7 @@
                 btn.style.color = "#666";
                 btn.style.textDecoration = "none";
                 
-                currentUnreadCount--;
-                updateAccordionLabel();
-                if (currentUnreadCount <= 0) updateMainButton(true);
-                
+                refreshLabels();
                 window.open(url, '_blank');
             } catch (e) {
                 console.error(e);
@@ -231,40 +222,37 @@
             }
         }
 
-        function updateAccordionLabel() {
-            const label = document.getElementById('accordion-label');
-            const list = document.getElementById('alert-list');
-            const isExpanded = list.classList.contains('active');
+        // 3. ラベルとボタンの整合性（物理的な要素数をカウント）
+        function refreshLabels() {
+            const allIcons = document.querySelectorAll('.check-icon');
+            const unreadTotal = Array.from(allIcons).filter(i => i.innerText !== "✅").length;
             
-            // v1.11準拠：アコーディオン内の未読アイテムをカウント
-            const unreadInAccordion = Array.from(list.querySelectorAll('.unread-item')).filter(div => {
-                return div.querySelector('.check-icon').innerText !== "✅";
-            }).length;
+            // アコーディオン内の未読数
+            const accordionIcons = document.getElementById('alert-list').querySelectorAll('.check-icon');
+            const unreadInAccordion = Array.from(accordionIcons).filter(i => i.innerText !== "✅").length;
+
+            const label = document.getElementById('accordion-label');
+            const isExpanded = document.getElementById('alert-list').classList.contains('active');
 
             if (unreadInAccordion > 0) {
                 label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${unreadInAccordion} 件あります ▼`;
             } else {
                 label.innerText = "✅ 他の未読はすべて確認済みです";
             }
+
+            updateMainButton(unreadTotal === 0);
         }
 
         function toggleAccordion() {
-            const list = document.getElementById('alert-list');
-            list.classList.toggle('active');
-            updateAccordionLabel();
+            document.getElementById('alert-list').classList.toggle('active');
+            refreshLabels();
         }
 
         function updateMainButton(isAllRead) {
             const btn = document.getElementById('goMainBtn');
-            if (isAllRead) {
-                btn.disabled = false;
-                btn.innerText = "確認完了：メインサイトへ進む";
-                btn.style.background = "#28a745";
-            } else {
-                btn.disabled = true;
-                btn.innerText = "未読を確認してください";
-                btn.style.background = "#ccc";
-            }
+            btn.disabled = !isAllRead;
+            btn.innerText = isAllRead ? "確認完了：メインサイトへ進む" : "未読を確認してください";
+            btn.style.background = isAllRead ? "#28a745" : "#ccc";
         }
 
         function goToMain() {
