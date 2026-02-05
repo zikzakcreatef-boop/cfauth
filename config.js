@@ -5,7 +5,7 @@
  */
 
 // GASのウェブアプリURL（デプロイ後に取得したもの）
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxawH498tJPOPHMVRVEvz11Y5FPmCc3Gbs-STE0--0q25JZhouVzwkdR_FF-hDZcyaVaQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwjepTFufRjlgNzU_jSJUELK9k8msy8k5gd5CNFJoqCI6adPBesQltEh8kaOxT3nBHpGQ/exec";
 
 // スプレッドシートの config シートに設定した 'api_key' と一致させること
 const API_KEY = "Z2VtX21heF8yMDI2X3NlY3VyZQ==";
