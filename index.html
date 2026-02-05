@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.37</title>
+    <title>CF認証システム1.38</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -47,6 +47,7 @@
         let loggedInUserId = "";
         let finalRedirectUrl = "";
         let targetContentId = "";
+        let unreadCountGlobal = 0;
 
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -59,13 +60,10 @@
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // 強制上書き: setTimeoutでレンダリングの最後に実行
-                    setTimeout(() => {
-                        document.getElementById('display-title').innerText = res.title || "ログイン";
-                        document.getElementById('display-desc').innerText = res.description || "";
-                        document.title = res.title || "CF認証システム";
-                        if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
-                    }, 0);
+                    // v1.11の挙動：GASから届いた値を最優先で反映
+                    document.getElementById('display-title').innerText = res.title;
+                    document.getElementById('display-desc').innerText = res.description || "";
+                    document.title = res.title;
                 }
             } catch (e) { console.error(e); } finally {
                 document.getElementById('login-area').style.display = 'block';
@@ -78,10 +76,8 @@
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
             if (!userId || !password) return;
-            
             const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-            btn.innerText = "認証中...";
+            btn.disabled = true; btn.innerText = "認証中...";
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -95,8 +91,7 @@
                     renderContentArea(res.userName, res.unreadAlerts);
                 } else {
                     document.getElementById('errorMsg').innerText = res.message;
-                    btn.disabled = false;
-                    btn.innerText = "ログイン";
+                    btn.disabled = false; btn.innerText = "ログイン";
                 }
             } catch (e) { btn.disabled = false; }
         }
@@ -111,78 +106,89 @@
             const trigger = document.getElementById('accordion-trigger');
             
             mainDiv.innerHTML = ""; subDiv.innerHTML = "";
-            if (!unreadList || unreadList.length === 0) {
+            unreadCountGlobal = unreadList ? unreadList.length : 0;
+
+            if (unreadCountGlobal === 0) {
                 mainDiv.innerHTML = "<p>未読はありません。</p>";
+                trigger.style.display = "none";
                 updateMainButton(true); return;
             }
 
-            let matchFound = false;
+            let hasMatch = false;
             let others = 0;
 
             unreadList.forEach(item => {
-                // 文字列比較で確実に判定
                 if (targetContentId && String(item.id) === String(targetContentId)) {
                     renderItem(item, mainDiv, "m");
-                    matchFound = true;
+                    hasMatch = true;
                 } else {
                     renderItem(item, subDiv, others);
                     others++;
                 }
             });
 
-            // 1.11ロジック: 一致があればアコーディオンは物理的に隠す
-            if (matchFound) {
+            // 【重要】画像(image_cd30e4.png)の挙動を完全再現
+            if (hasMatch) {
                 trigger.style.display = (others > 0) ? "block" : "none";
-                subDiv.style.display = "none"; 
+                subDiv.style.display = "none"; // 強制的に閉じる
                 subDiv.classList.remove('active');
             } else {
                 trigger.style.display = "block";
-                subDiv.style.display = "block";
+                subDiv.style.display = "block"; // 強制的に開く
                 subDiv.classList.add('active');
             }
-            refreshLabels();
+            refreshLabels(others, hasMatch);
         }
 
         function renderItem(item, container, idx) {
             const div = document.createElement('div');
             div.className = 'unread-item';
             div.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;">
-                <div><span class="icon-span" id="icon-${idx}"></span><strong>${item.title}</strong></div>
-                <button class="content-link" onclick="openContent('${item.url}','${item.id}','${idx}')">▶ 内容を確認する</button>
+                <div><span class="check-icon" id="icon-${idx}"></span><strong>${item.title}</strong></div>
+                <button class="content-link" id="btn-${idx}" onclick="openContent('${item.url}','${item.id}','${idx}')">▶ 内容を確認する</button>
             </div>`;
             container.appendChild(div);
         }
 
         async function openContent(url, id, idx) {
             const icon = document.getElementById(`icon-${idx}`);
+            const btn = document.getElementById(`btn-${idx}`);
             if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
             try {
+                btn.innerText = "...記録中";
                 await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) });
                 icon.innerText = "✅";
-                refreshLabels();
+                btn.innerText = "確認済み";
+                unreadCountGlobal--;
+                
+                // アコーディオン内の未読を再計算
+                const subUnread = Array.from(document.getElementById('alert-list').querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
+                refreshLabels(subUnread, true); // hasMatchはtrue固定で再描画
                 window.open(url, '_blank');
-            } catch (e) { console.error(e); }
+            } catch (e) { btn.innerText = "▶ 内容を確認する"; }
         }
 
-        function refreshLabels() {
-            const unreadInAccordion = Array.from(document.getElementById('alert-list').querySelectorAll('.icon-span')).filter(i => i.innerText !== "✅").length;
-            const totalUnread = Array.from(document.querySelectorAll('.icon-span')).filter(i => i.innerText !== "✅").length;
+        function refreshLabels(subCount, hasMatch) {
             const label = document.getElementById('accordion-label');
-            const isOpened = document.getElementById('alert-list').classList.contains('active');
+            const list = document.getElementById('alert-list');
+            const isOpened = list.classList.contains('active');
             
-            if (unreadInAccordion > 0) {
-                label.innerText = isOpened ? "リストを閉じる ▲" : `他に未読が ${unreadInAccordion} 件あります ▼`;
+            if (subCount > 0) {
+                // スクショ image_cd30e4.png の文言に準拠
+                label.innerText = isOpened ? "リストを閉じる ▲" : `未読リストを確認する ▼ (残り ${subCount} 件)`;
             } else {
-                label.innerText = "✅ 他の未読はすべて確認済みです";
+                label.innerText = "✅ すべての未読を確認しました";
             }
-            updateMainButton(totalUnread === 0);
+            updateMainButton(unreadCountGlobal <= 0);
         }
 
         function toggleAccordion() {
             const list = document.getElementById('alert-list');
             const act = list.classList.toggle('active');
             list.style.display = act ? "block" : "none";
-            refreshLabels();
+            // 現在のアコーディオン内未読数を数えてラベル更新
+            const subCount = Array.from(list.querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
+            refreshLabels(subCount, true);
         }
 
         function updateMainButton(ok) {
