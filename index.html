@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.30</title>
+    <title>CF認証システム1.31</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -24,6 +24,7 @@
         .btn-main { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; font-weight: bold; }
         .btn-main:disabled { background: #ccc; cursor: not-allowed; }
         
+        /* v1.11準拠：テキストリンク */
         .content-link { color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; font-weight: normal; background: none; border: none; padding: 0; }
         .content-link:hover { color: #0056b3; }
         .check-icon { color: #28a745; font-weight: bold; margin-right: 8px; }
@@ -75,14 +76,14 @@
             targetContentId = urlParams.get('id');
 
             try {
-                // v1.11挙動：targetContentIdがあればGASへ送り、タイトル・説明文を取得
+                // v1.11準拠：IDがあれば記事情報、なければデフォルトUI情報を取得
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: targetContentId })
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // v1.11：ここでログイン画面のテキストを差し替える
+                    // ここで確実にタイトルと説明文を差し替える
                     document.getElementById('display-title').innerText = res.title || "ログイン";
                     document.getElementById('display-desc').innerText = res.description || "";
                     if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
@@ -158,8 +159,8 @@
                 matchIndex = unreadList.findIndex(item => String(item.id) === String(targetContentId));
             }
 
+            // v1.11準拠：オプション一致時の「抽出」と「初期畳み込み」
             if (matchIndex !== -1) {
-                // オプション一致あり：その1件をメイン、残りをアコーディオンへ
                 unreadList.forEach((item, index) => {
                     if (index === matchIndex) {
                         renderItem(item, mainContainer, index);
@@ -167,17 +168,15 @@
                         renderItem(item, alertList, index);
                     }
                 });
-                // v1.11挙動：一致がある場合はアコーディオンは最初「閉じ」
                 trigger.style.display = (unreadList.length > 1) ? "block" : "none";
-                alertList.classList.remove('active');
+                alertList.classList.remove('active'); // 最初は閉じる
             } else {
-                // オプションなし、または一致なし：全件アコーディオンへ
+                // 一致なし：全件アコーディオン、最初から「開く」
                 unreadList.forEach((item, index) => {
                     renderItem(item, alertList, index);
                 });
-                // v1.11挙動：一致がない場合はアコーディオンは最初「開き」
                 trigger.style.display = "block";
-                alertList.classList.add('active');
+                alertList.classList.add('active'); // 最初から開く
             }
 
             updateMainButton(currentUnreadCount <= 0);
@@ -237,7 +236,7 @@
             const list = document.getElementById('alert-list');
             const isExpanded = list.classList.contains('active');
             
-            // v1.11挙動：アコーディオン内にある「未読」の数を正確にカウント
+            // v1.11準拠：アコーディオン内の未読アイテムをカウント
             const unreadInAccordion = Array.from(list.querySelectorAll('.unread-item')).filter(div => {
                 return div.querySelector('.check-icon').innerText !== "✅";
             }).length;
