@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム</title>
+    <title>CF認証システム1.33</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -61,7 +61,7 @@
         let finalRedirectUrl = "";
         let targetContentId = "";
 
-        // 1. ログイン前の動的書き換え（v1.11ロジック）
+        // 1. ログイン前の差し替え（物理的な強制書き換え）
         window.onload = async function() {
             const urlParams = new URLSearchParams(window.location.search);
             targetContentId = urlParams.get('id');
@@ -73,13 +73,15 @@
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // ここが修正点：IDがあれば記事タイトルに、なければシステム名に物理的に書き換え
-                    document.getElementById('display-title').innerText = res.title;
-                    document.getElementById('display-desc').innerText = res.description || "";
+                    // ID合致があればその情報を、なければデフォルト情報をDOMに流し込む
+                    const titleElem = document.getElementById('display-title');
+                    const descElem = document.getElementById('display-desc');
+                    titleElem.innerText = res.title;
+                    descElem.innerText = res.description || "";
                     if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
                 }
             } catch (e) {
-                console.error("Config Load Error:", e);
+                console.error("Config Error:", e);
             } finally {
                 document.getElementById('login-area').style.display = 'block';
                 document.getElementById('loading-screen').style.display = 'none';
@@ -97,7 +99,6 @@
                 errorMsg.innerText = "IDとパスワードを入力してください。";
                 return;
             }
-
             btn.disabled = true;
             btn.innerText = "認証中...";
 
@@ -107,7 +108,6 @@
                     body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
                 });
                 const res = await response.json();
-
                 if (res.success) {
                     loggedInUserId = userId;
                     finalRedirectUrl = res.redirectUrl;
@@ -118,13 +118,13 @@
                     btn.innerText = "ログイン";
                 }
             } catch (e) {
-                errorMsg.innerText = "通信エラーが発生しました。";
+                errorMsg.innerText = "通信エラー";
                 btn.disabled = false;
                 btn.innerText = "ログイン";
             }
         }
 
-        // 2. 抽出と畳み込みの完全再現（v1.11ロジック）
+        // 2. v1.11準拠：振り分けと初期表示の厳格制御
         function renderContentArea(userName, unreadList) {
             document.getElementById('login-area').style.display = 'none';
             document.getElementById('content-area').style.display = 'block';
@@ -144,37 +144,33 @@
                 return;
             }
 
-            let matchItem = null;
-            let otherItems = [];
+            let hasMatch = false;
+            let otherCount = 0;
 
-            // 振り分け処理
             unreadList.forEach(item => {
+                // targetContentIdが存在し、かつ一致した場合のみメインエリアへ
                 if (targetContentId && String(item.id) === String(targetContentId)) {
-                    matchItem = item;
+                    renderItem(item, mainContainer, "main");
+                    hasMatch = true;
                 } else {
-                    otherItems.push(item);
+                    renderItem(item, alertList, otherCount);
+                    otherCount++;
                 }
             });
 
-            // 描画実行
-            if (matchItem) {
-                // 一致あり：メインへ
-                renderItem(matchItem, mainContainer, "main");
-                otherItems.forEach((item, i) => renderItem(item, alertList, i));
-                
-                // 一致がある場合、アコーディオンは初期状態で「閉じ」
-                trigger.style.display = (otherItems.length > 0) ? "block" : "none";
+            // 3. 表示ステータスの決定
+            if (hasMatch) {
+                // オプション合致あり：メインに抽出。アコーディオンは初期「閉じ」
+                trigger.style.display = (otherCount > 0) ? "block" : "none";
                 alertList.classList.remove('active');
             } else {
-                // 一致なし：全件アコーディオンへ
-                unreadList.forEach((item, i) => renderItem(item, alertList, i));
-                
-                // 一致がない場合、アコーディオンは初期状態で「開き」
+                // オプションなし・一致なし：全件アコーディオン。初期「開き」
+                // メインを空にして、すべての要素をアコーディオン側へ（再描画は不要、既にotherItemsに入っている）
                 trigger.style.display = "block";
                 alertList.classList.add('active');
             }
 
-            refreshLabels();
+            refreshLabels(unreadList.length, otherCount, hasMatch);
         }
 
         function renderItem(item, container, idSuffix) {
@@ -196,56 +192,64 @@
         async function openContent(url, id, idSuffix) {
             const btn = document.getElementById(`btn-${idSuffix}`);
             const icon = document.getElementById(`icon-${idSuffix}`);
-            
             if (icon.innerText === "✅") {
                 window.open(url, '_blank');
                 return;
             }
-
             try {
                 btn.innerText = "...記録中";
                 await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
                 });
-                
                 icon.innerText = "✅";
                 btn.innerText = "確認済み";
                 btn.style.color = "#666";
                 btn.style.textDecoration = "none";
                 
-                refreshLabels();
+                // 再計算
+                refreshLabelsAfterClick();
                 window.open(url, '_blank');
             } catch (e) {
-                console.error(e);
                 btn.innerText = "▶ 内容を確認する";
             }
         }
 
-        // 3. ラベルとボタンの整合性（物理的な要素数をカウント）
-        function refreshLabels() {
-            const allIcons = document.querySelectorAll('.check-icon');
-            const unreadTotal = Array.from(allIcons).filter(i => i.innerText !== "✅").length;
-            
-            // アコーディオン内の未読数
-            const accordionIcons = document.getElementById('alert-list').querySelectorAll('.check-icon');
-            const unreadInAccordion = Array.from(accordionIcons).filter(i => i.innerText !== "✅").length;
-
+        // 4. 数値計算の正確な反映
+        function refreshLabels(totalUnread, accordionCount, hasMatch) {
             const label = document.getElementById('accordion-label');
             const isExpanded = document.getElementById('alert-list').classList.contains('active');
 
-            if (unreadInAccordion > 0) {
-                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${unreadInAccordion} 件あります ▼`;
+            if (accordionCount > 0) {
+                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${accordionCount} 件あります ▼`;
+            } else if (hasMatch) {
+                label.innerText = "✅ 他の未読はすべて確認済みです";
+            } else {
+                label.innerText = "✅ 未読リストを確認済みです";
+            }
+            updateMainButton(totalUnread === 0);
+        }
+
+        function refreshLabelsAfterClick() {
+            const allIcons = document.querySelectorAll('.check-icon');
+            const totalUnread = Array.from(allIcons).filter(i => i.innerText !== "✅").length;
+            const accordionIcons = document.getElementById('alert-list').querySelectorAll('.check-icon');
+            const accordionUnread = Array.from(accordionIcons).filter(i => i.innerText !== "✅").length;
+            
+            const label = document.getElementById('accordion-label');
+            const isExpanded = document.getElementById('alert-list').classList.contains('active');
+
+            if (accordionUnread > 0) {
+                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${accordionUnread} 件あります ▼`;
             } else {
                 label.innerText = "✅ 他の未読はすべて確認済みです";
             }
-
-            updateMainButton(unreadTotal === 0);
+            updateMainButton(totalUnread === 0);
         }
 
         function toggleAccordion() {
             document.getElementById('alert-list').classList.toggle('active');
-            refreshLabels();
+            refreshLabelsAfterClick();
         }
 
         function updateMainButton(isAllRead) {
@@ -259,9 +263,7 @@
             window.location.href = finalRedirectUrl || "https://www.yahoo.co.jp/";
         }
 
-        function handleLogout() {
-            location.reload();
-        }
+        function handleLogout() { location.reload(); }
     </script>
 </body>
 </html>
