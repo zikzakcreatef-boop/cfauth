@@ -1,52 +1,81 @@
-<script>
-    async function submitSignup() {
-        const name = document.getElementById('userName').value;
-        const email = document.getElementById('userId').value;
-        const password = document.getElementById('password').value;
-        const btn = document.getElementById('submitBtn');
-        const msgDiv = document.getElementById('statusMsg');
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規登録 - CF認証システム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div id="form-area" class="form-box">
+            <h2>新規利用申請</h2>
+            <p class="description">必要事項を入力して申請してください。</p>
+            <input type="text" id="userName" placeholder="お名前">
+            <input type="email" id="userId" placeholder="メールアドレス">
+            <input type="password" id="password" placeholder="パスワード">
+            <button id="submitBtn" class="btn btn-success" onclick="submitSignup()">申請する</button>
+            <p id="statusMsg" style="color:#d93025; margin-top:10px;"></p>
+            <div class="footer-links" style="margin-top:20px;">
+                <a href="index.html">ログイン画面へ戻る</a>
+            </div>
+        </div>
 
-        if (!name || !email || !password) {
-            msgDiv.style.color = "#d93025";
-            msgDiv.innerText = "全項目入力してください。";
-            return;
-        }
+        <div id="success-area" class="form-box" style="display:none;">
+            <h2 style="color:#28a745;">申請を受け付けました</h2>
+            <p>ご入力いただいたメールアドレス宛に確認メールを送信しました。</p>
+            <p>メール内のリンクをクリックして、認証を完了させてください。</p>
+            <div class="footer-links" style="margin-top:20px;">
+                <a href="index.html" class="btn btn-primary">閉じる</a>
+            </div>
+        </div>
+    </div>
 
-        btn.disabled = true;
-        btn.innerText = "送信中...";
+    <script src="config.js"></script>
+    <script>
+        async function submitSignup() {
+            const name = document.getElementById('userName').value;
+            const email = document.getElementById('userId').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('statusMsg');
 
-        try {
-            // mode: "no-cors" は絶対に使わないこと。JSONレスポンスが読めなくなるため。
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({
-                    action: "signup",
-                    apiKey: API_KEY,
-                    userName: name,
-                    userId: email,
-                    password: password
-                })
-            });
-            const res = await response.json();
-
-            if (res.success) {
-                // 成功時は入力エリアを消して成功メッセージを表示
-                document.getElementById('form-area').style.display = "none";
-                document.getElementById('footer-links-area').style.display = "none";
-                document.getElementById('success-area').style.display = "block";
-                msgDiv.innerText = "";
-            } else {
-                msgDiv.style.color = "#d93025";
-                msgDiv.innerText = res.message;
-                btn.disabled = false;
-                btn.innerText = "アカウント作成申請";
+            if (!name || !email || !password) {
+                msg.innerText = "すべての項目を入力してください。";
+                return;
             }
-        } catch (error) {
-            console.error("Fetch error:", error);
-            msgDiv.style.color = "#d93025";
-            msgDiv.innerText = "通信エラーが発生しました。";
-            btn.disabled = false;
-            btn.innerText = "アカウント作成申請";
+
+            msg.innerText = "";
+            btn.disabled = true;
+            btn.innerText = "送信中...";
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "signup",
+                        apiKey: API_KEY,
+                        userName: name,
+                        userId: email,
+                        password: password
+                    })
+                });
+                const res = await response.json();
+                
+                if (res.success) {
+                    document.getElementById('form-area').style.display = 'none';
+                    document.getElementById('success-area').style.display = 'block';
+                } else {
+                    msg.innerText = res.message;
+                    btn.disabled = false;
+                    btn.innerText = "申請する";
+                }
+            } catch (error) {
+                msg.innerText = "通信エラーが発生しました。";
+                btn.disabled = false;
+                btn.innerText = "申請する";
+            }
         }
-    }
-</script>
+    </script>
+</body>
+</html>

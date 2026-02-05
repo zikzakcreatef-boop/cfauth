@@ -3,197 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.15</title>
+    <title>CF認証システム1.18</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
         .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        
-        #accordion-trigger {
-            width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px;
-            cursor: pointer; font-weight: bold; color: #555; margin-top: 15px; text-align: center;
-            transition: background 0.2s; display: none;
-        }
-        #accordion-trigger:hover { background: #e9ecef; }
-        #alert-list { display: none; text-align: left; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px; }
-        #alert-list.active { display: block; }
-        #main-confirmed-area { margin-bottom: 20px; }
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        #unread-list { margin-top: 20px; }
     </style>
 </head>
 <body id="main-body">
-    <div class="container">
-        <div class="form-box">
-            <h2 id="system-title">Loading...</h2>
-            <p id="system-description" class="description"></p>
-            
-            <div id="login-fields">
-                <input type="email" id="email" placeholder="メールアドレス" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
-                <input type="password" id="password" placeholder="パスワード" style="width:100%; padding:10px; margin-bottom:10px; box-sizing: border-box;">
-                <button id="loginBtn" class="btn" onclick="login()" style="width:100%;">ログイン</button>
-            </div>
+    <div id="loading-screen">読み込み中...</div>
 
-            <div id="unread-section" style="display: none;">
-                <h3 style="color:#28a745;">✅ 認証完了</h3>
-                <div id="main-confirmed-area"></div>
-                <div id="accordion-trigger" onclick="toggleAccordion()">
-                    <span id="accordion-label"></span>
-                </div>
-                <div id="alert-list"></div>
-                <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:20px;">メインサイトへ</button>
+    <div class="container" id="login-area" style="display:none;">
+        <div class="form-box">
+            <h2 id="display-title">ログイン</h2>
+            <p id="display-desc"></p>
+            <input type="email" id="userId" placeholder="メールアドレス">
+            <input type="password" id="password" placeholder="パスワード">
+            <button class="btn btn-primary" onclick="handleLogin()">ログイン</button>
+            <div class="footer-links">
+                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
             </div>
-            
-            <p id="message" style="color:red;"></p>
-            <div class="footer-links" id="footer-nav"><a href="signup.html">新規登録</a> | <a href="forgot-password.html">パスワードを忘れた</a></div>
         </div>
+    </div>
+
+    <div class="container" id="content-area" style="display:none;">
+        <h3>こんにちは、<span id="user-name-disp"></span>さん</h3>
+        <p>未読のコンテンツがあります：</p>
+        <div id="unread-list"></div>
+        <button class="btn" style="margin-top:20px;" onclick="handleLogout()">ログアウト</button>
     </div>
 
     <script src="config.js"></script>
     <script>
-        let unreadCache = [];
-        let currentUnreadCount = 0;
-        let loggedInUserId = "";
-        let redirectUrlCache = "";
-        let autoReadId = "";
+        let loggedInUserId = localStorage.getItem('loggedInUserId');
 
-        const urlParams = new URLSearchParams(window.location.search);
-        autoReadId = urlParams.get('contentId');
-
-        window.onload = async () => {
+        window.onload = async function() {
             try {
-                const res = await fetch(GAS_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: autoReadId }) 
-                }).then(r => r.json());
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
+                });
+                const config = await response.json();
+                document.getElementById('display-title').innerText = config.system_title;
+                document.getElementById('display-desc').innerText = config.system_description;
+                document.body.style.backgroundColor = config.bg_color;
                 
-                if (res.success && res.data) {
-                    document.getElementById('system-title').innerText = res.data.title;
-                    document.getElementById('system-description').innerText = res.data.description;
-                    if (res.data.bgColor) document.body.style.backgroundColor = res.data.bgColor;
+                if (loggedInUserId) {
+                    showContents();
+                } else {
+                    document.getElementById('login-area').style.display = 'block';
+                    document.getElementById('loading-screen').style.display = 'none';
+                    document.body.classList.add('loaded');
                 }
-            } catch (e) { console.error(e); }
-            document.body.classList.add('loaded');
+            } catch (e) {
+                console.error("Initialization Error:", e);
+                document.getElementById('loading-screen').innerText = "エラーが発生しました。設定を確認してください。";
+            }
         };
 
-        async function login() {
-            const userId = document.getElementById('email').value;
+        async function handleLogin() {
+            const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            const msg = document.getElementById('message');
-            msg.innerText = "認証中...";
+            const screen = document.getElementById('loading-screen');
+
+            if(!userId || !password) { alert("入力してください"); return; }
+            screen.style.display = 'flex';
 
             try {
-                const res = await fetch(GAS_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password }) 
-                }).then(r => r.json());
-                
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
+                });
+                const res = await response.json();
                 if (res.success) {
-                    msg.innerText = "";
-                    loggedInUserId = userId;
-                    unreadCache = res.data.unreadAlerts || [];
-                    redirectUrlCache = res.data.redirectUrl;
-                    
-                    if (autoReadId) {
-                        await fetch(GAS_URL, { 
-                            method: "POST", 
-                            body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: autoReadId }) 
-                        });
-                        unreadCache.forEach(item => { if (String(item.id) === String(autoReadId)) item.isAutoRead = true; });
-                    }
-
-                    const hasAutoReadInList = unreadCache.some(item => item.isAutoRead);
-                    currentUnreadCount = hasAutoReadInList ? unreadCache.length - 1 : unreadCache.length;
-                    
-                    showUnreadUI();
+                    localStorage.setItem('loggedInUserId', userId);
+                    localStorage.setItem('userName', res.userName);
+                    window.location.href = res.redirectUrl;
                 } else {
-                    msg.innerText = res.message;
+                    alert(res.message);
+                    screen.style.display = 'none';
                 }
-            } catch (e) { msg.innerText = "通信エラーが発生しました。"; }
-        }
-
-        function showUnreadUI() {
-            document.getElementById('login-fields').style.display = "none";
-            // 【修正】ログイン後は常にシステム説明文(2行目)を非表示にする
-            document.getElementById('system-description').style.display = "none";
-            document.getElementById('footer-nav').style.display = "none";
-            document.getElementById('unread-section').style.display = "block";
-            
-            renderHybridList();
-            updateAccordionLabel();
-            document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
-        }
-
-        function renderHybridList() {
-            const mainArea = document.getElementById('main-confirmed-area');
-            const listDiv = document.getElementById('alert-list');
-            const trigger = document.getElementById('accordion-trigger');
-            
-            let mainHtml = "";
-            let otherListHtml = "";
-            let otherCount = 0;
-
-            unreadCache.forEach((item, i) => {
-                const isMain = item.isAutoRead === true;
-                const html = `
-                    <div class="unread-item" style="${isMain ? 'background: #f0fff4; border-left: 5px solid #28a745;' : ''}">
-                        <div style="font-weight:bold; margin-bottom: 8px;">
-                            <span id="icon-${i}">${isMain ? '✅' : '⭕'}</span> ${item.title}
-                        </div>
-                        <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" 
-                                style="color:${isMain ? '#666' : 'blue'}; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0; font-size: 13px;">
-                            ${isMain ? '確認済み（再表示）' : '▶ 内容を確認する'}
-                        </button>
-                    </div>`;
-
-                if (isMain) {
-                    mainHtml = html;
-                } else {
-                    otherListHtml += html;
-                    otherCount++;
-                }
-            });
-
-            mainArea.innerHTML = mainHtml;
-            listDiv.innerHTML = otherListHtml;
-            if (otherCount > 0) { trigger.style.display = "block"; }
-        }
-
-        function updateAccordionLabel() {
-            const label = document.getElementById('accordion-label');
-            const list = document.getElementById('alert-list');
-            const isExpanded = list.classList.contains('active');
-            
-            if (currentUnreadCount > 0) {
-                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${currentUnreadCount} 件あります ▼`;
-            } else {
-                label.innerText = "✅ 他の未読はすべて確認済みです";
+            } catch (e) {
+                alert("通信エラー");
+                screen.style.display = 'none';
             }
         }
 
-        function toggleAccordion() {
-            const list = document.getElementById('alert-list');
-            list.classList.toggle('active');
-            updateAccordionLabel();
+        async function showContents() {
+            const userName = localStorage.getItem('userName');
+            document.getElementById('user-name-disp').innerText = userName;
+            document.getElementById('content-area').style.display = 'block';
+            document.getElementById('loading-screen').style.display = 'none';
+            document.body.classList.add('loaded');
+            
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_unread", apiKey: API_KEY, userId: loggedInUserId })
+                });
+                const data = await response.json();
+                const listDiv = document.getElementById('unread-list');
+                listDiv.innerHTML = "";
+
+                if (!data.contents || data.contents.length === 0) {
+                    listDiv.innerHTML = "<p>未読はありません。最新の状態です。</p>";
+                } else {
+                    data.contents.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'unread-item';
+                        div.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span><strong>${item.title}</strong></span>
+                                <button class="btn btn-sm" onclick="openContent('${item.url}', '${item.id}')">閲覧する</button>
+                            </div>
+                        `;
+                        listDiv.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                console.error("Fetch Content Error:", e);
+            }
         }
 
-        async function handleCheck(url, id, i) {
-            const icon = document.getElementById(`icon-${i}`);
-            const btn = document.getElementById(`btn-${i}`);
-            if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
-
+        async function openContent(url, id) {
             try {
-                await fetch(GAS_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
+                await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
                 });
-                icon.innerText = "✅";
-                btn.innerText = "確認済み（再表示）";
-                btn.style.color = "#666";
-                
-                currentUnreadCount--;
-                updateAccordionLabel();
-            } catch (e) { console.error(e); }
-            window.open(url, '_blank');
+                window.open(url, '_blank');
+                location.reload();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function handleLogout() {
+            localStorage.clear();
+            location.reload();
         }
     </script>
 </body>
