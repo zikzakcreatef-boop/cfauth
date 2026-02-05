@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.29</title>
+    <title>CF認証システム1.30</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -24,7 +24,6 @@
         .btn-main { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; font-weight: bold; }
         .btn-main:disabled { background: #ccc; cursor: not-allowed; }
         
-        /* v1.11準拠：テキストリンクスタイル */
         .content-link { color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; font-weight: normal; background: none; border: none; padding: 0; }
         .content-link:hover { color: #0056b3; }
         .check-icon { color: #28a745; font-weight: bold; margin-right: 8px; }
@@ -54,7 +53,7 @@
             <div id="main-unread-container"></div>
 
             <div id="accordion-trigger" onclick="toggleAccordion()">
-                <span id="accordion-label">未読リストを確認する ▼</span>
+                <span id="accordion-label"></span>
             </div>
             <div id="alert-list"></div>
 
@@ -72,19 +71,18 @@
         let targetContentId = "";
 
         window.onload = async function() {
-            // v1.11準拠：URLからオプションIDを取得
             const urlParams = new URLSearchParams(window.location.search);
             targetContentId = urlParams.get('id');
 
             try {
-                // targetContentIdがある場合、GAS側でタイトルと説明文を差し替える (v1.26機能維持)
+                // v1.11挙動：targetContentIdがあればGASへ送り、タイトル・説明文を取得
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: targetContentId })
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // IDが一致した場合はその記事のタイトル・説明文が、なければシステム設定が表示される
+                    // v1.11：ここでログイン画面のテキストを差し替える
                     document.getElementById('display-title').innerText = res.title || "ログイン";
                     document.getElementById('display-desc').innerText = res.description || "";
                     if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
@@ -155,31 +153,29 @@
                 return;
             }
 
-            // v1.11準拠：オプション一致判定と振り分け
-            let hasMatch = false;
+            let matchIndex = -1;
             if (targetContentId) {
+                matchIndex = unreadList.findIndex(item => String(item.id) === String(targetContentId));
+            }
+
+            if (matchIndex !== -1) {
+                // オプション一致あり：その1件をメイン、残りをアコーディオンへ
                 unreadList.forEach((item, index) => {
-                    if (String(item.id) === String(targetContentId)) {
-                        // オプションと一致：メインエリアへ
+                    if (index === matchIndex) {
                         renderItem(item, mainContainer, index);
-                        hasMatch = true;
                     } else {
-                        // それ以外：アコーディオンへ
                         renderItem(item, alertList, index);
                     }
                 });
-            } else {
-                // オプションなし：すべてアコーディオンへ
-                unreadList.forEach((item, index) => renderItem(item, alertList, index));
-            }
-
-            // v1.11準拠：表示の初期状態制御
-            if (hasMatch) {
-                // 合致がある場合：アコーディオンは最初「閉じ」
-                trigger.style.display = (currentUnreadCount > 1) ? "block" : "none";
+                // v1.11挙動：一致がある場合はアコーディオンは最初「閉じ」
+                trigger.style.display = (unreadList.length > 1) ? "block" : "none";
                 alertList.classList.remove('active');
             } else {
-                // 合致がない場合：アコーディオンは最初「開き」
+                // オプションなし、または一致なし：全件アコーディオンへ
+                unreadList.forEach((item, index) => {
+                    renderItem(item, alertList, index);
+                });
+                // v1.11挙動：一致がない場合はアコーディオンは最初「開き」
                 trigger.style.display = "block";
                 alertList.classList.add('active');
             }
@@ -188,7 +184,6 @@
             updateAccordionLabel();
         }
 
-        // v1.11準拠：タイトルのみ、リンク「▶ 内容を確認する」
         function renderItem(item, container, index) {
             const div = document.createElement('div');
             div.className = 'unread-item';
@@ -242,21 +237,16 @@
             const list = document.getElementById('alert-list');
             const isExpanded = list.classList.contains('active');
             
-            if (currentUnreadCount > 0) {
-                // 指定コンテンツをメインに出している場合、アコーディオン側にある「残りの数」を表示
-                const accordionItems = list.querySelectorAll('.unread-item').length;
-                if (mainUnreadContainerHasItem() && accordionItems > 0) {
-                    label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${accordionItems} 件あります ▼`;
-                } else {
-                    label.innerText = isExpanded ? "リストを閉じる ▲" : "未読リストを確認する ▼";
-                }
-            } else {
-                label.innerText = "✅ すべての未読を確認済みです";
-            }
-        }
+            // v1.11挙動：アコーディオン内にある「未読」の数を正確にカウント
+            const unreadInAccordion = Array.from(list.querySelectorAll('.unread-item')).filter(div => {
+                return div.querySelector('.check-icon').innerText !== "✅";
+            }).length;
 
-        function mainUnreadContainerHasItem() {
-            return document.getElementById('main-unread-container').querySelector('.unread-item') !== null;
+            if (unreadInAccordion > 0) {
+                label.innerText = isExpanded ? "リストを閉じる ▲" : `他に未読が ${unreadInAccordion} 件あります ▼`;
+            } else {
+                label.innerText = "✅ 他の未読はすべて確認済みです";
+            }
         }
 
         function toggleAccordion() {
