@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.23</title>
+    <title>CF認証システム 1.24</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
         .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        #unread-list { margin-top: 20px; }
+        #unread-list { margin-top: 20px; text-align: left; }
+        .welcome-msg { margin-bottom: 20px; font-weight: bold; font-size: 1.1em; color: #333; }
+        .btn-main { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .btn-main:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body id="main-body">
@@ -20,122 +23,127 @@
         <div class="form-box">
             <h2 id="display-title">ログイン</h2>
             <p id="display-desc"></p>
-            <input type="email" id="userId" placeholder="メールアドレス">
-            <input type="password" id="password" placeholder="パスワード">
-            <button class="btn" onclick="handleLogin()">ログイン</button>
-            <p id="login-msg" style="color:#d93025; margin-top:10px;"></p>
+            <input type="email" id="userId" placeholder="メールアドレス" required>
+            <input type="password" id="password" placeholder="パスワード" required>
+            <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">ログイン</button>
+            <p id="errorMsg" style="color:red; margin-top:10px;"></p>
             <div class="footer-links">
-                <a href="signup.html">新規利用申請</a> | <a href="forgot_password.html">パスワードを忘れた方</a>
+                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
             </div>
         </div>
     </div>
 
-    <div class="container" id="main-area" style="display:none;">
-        <div class="form-box" style="max-width:600px;">
-            <h2>こんにちは、<span id="user-name-display"></span> さん</h2>
-            <p>未読のコンテンツがあります。確認してください。</p>
-            
+    <div class="container" id="content-area" style="display:none;">
+        <div class="form-box">
+            <div class="welcome-msg" id="welcome-user"></div>
+            <p>以下の未読コンテンツを確認してください。</p>
             <div id="unread-list"></div>
-
-            <button class="btn btn-secondary" style="margin-top:20px;" onclick="handleLogout()">ログアウト</button>
+            <hr>
+            <button id="goMainBtn" class="btn-main" onclick="goToMain()">メインサイトへ進む</button>
+            <button class="btn btn-secondary" style="margin-top:10px;" onclick="handleLogout()">ログアウト</button>
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_7O2M-jH_3X88W8iM6Qh8-e7lI5_X9X0rWvD6p-z0_H_D_9X_/exec';
-        const API_KEY = 'Z2Vt_bWF4XzIwMjZfc2VjdXJl'; 
-        let loggedInUserId = localStorage.getItem('loggedInUserId');
+        let loggedInUserId = "";
+        let finalRedirectUrl = "";
 
-        window.onload = async () => {
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY })
-                });
-                const config = await response.json();
-                if (config.success) {
-                    document.getElementById('display-title').innerText = config.system_title;
-                    document.getElementById('display-desc').innerText = config.system_description;
-                    document.body.style.backgroundColor = config.bg_color;
-                }
-            } catch (e) { console.error(e); }
-
-            if (loggedInUserId) {
-                showMainArea();
+        window.onload = async function() {
+            const cachedTitle = localStorage.getItem('cached_system_title');
+            if (cachedTitle) document.getElementById('display-title').innerText = cachedTitle;
+            
+            // すでにログイン情報があるかチェック
+            const savedUser = localStorage.getItem('userId');
+            if (savedUser) {
+                // 既にログイン済みならコンテンツエリアを表示（再取得はせず保存データを利用するか、必要なら再ログインを促す）
+                showLoginArea(); 
             } else {
-                document.getElementById('login-area').style.display = 'block';
-                document.getElementById('loading-screen').style.display = 'none';
-                document.body.classList.add('loaded');
+                showLoginArea();
             }
+            
+            document.body.classList.add('loaded');
+            document.getElementById('loading-screen').style.display = 'none';
         };
+
+        function showLoginArea() {
+            document.getElementById('login-area').style.display = 'block';
+            document.getElementById('content-area').style.display = 'none';
+        }
 
         async function handleLogin() {
             const userId = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            const msg = document.getElementById('login-msg');
+            const btn = document.getElementById('loginBtn');
+            const errorMsg = document.getElementById('errorMsg');
+
+            if (!userId || !password) {
+                errorMsg.innerText = "IDとパスワードを入力してください。";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "認証中...";
+            errorMsg.innerText = "";
 
             try {
                 const response = await fetch(GAS_URL, {
                     method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: userId, password: password })
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId, password })
                 });
                 const res = await response.json();
 
                 if (res.success) {
-                    localStorage.setItem('loggedInUserId', userId);
-                    localStorage.setItem('userName', res.userName);
-                    localStorage.setItem('redirectUrl', res.redirectUrl);
                     loggedInUserId = userId;
-                    showMainArea();
+                    finalRedirectUrl = res.data.redirectUrl;
+                    
+                    // 状態保存
+                    localStorage.setItem('userId', userId);
+                    localStorage.setItem('userName', res.data.userName);
+                    
+                    renderContentArea(res.data.userName, res.data.unreadAlerts);
                 } else {
-                    msg.innerText = res.message;
+                    errorMsg.innerText = res.message;
+                    btn.disabled = false;
+                    btn.innerText = "ログイン";
                 }
             } catch (e) {
-                msg.innerText = "通信エラーが発生しました。";
+                errorMsg.innerText = "通信エラーが発生しました。";
+                btn.disabled = false;
+                btn.innerText = "ログイン";
             }
         }
 
-        function showMainArea() {
+        function renderContentArea(userName, unreadList) {
             document.getElementById('login-area').style.display = 'none';
-            document.getElementById('main-area').style.display = 'block';
-            document.getElementById('user-name-display').innerText = localStorage.getItem('userName');
-            document.getElementById('loading-screen').style.display = 'none';
-            document.body.classList.add('loaded');
-            showContents();
-        }
-
-        async function showContents() {
+            document.getElementById('content-area').style.display = 'block';
+            document.getElementById('welcome-user').innerText = `こんにちは、${userName} 様`;
+            
             const listDiv = document.getElementById('unread-list');
-            listDiv.innerHTML = "読み込み中...";
+            listDiv.innerHTML = "";
 
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "get_unread", apiKey: API_KEY, userId: loggedInUserId })
-                });
-                const data = await response.json();
-
-                if (data.success && data.contents && data.contents.length > 0) {
-                    listDiv.innerHTML = "";
-                    data.contents.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'unread-item';
-                        div.innerHTML = `
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <span><strong>${item.title}</strong></span>
-                                <button class="btn btn-sm" onclick="openContent('${item.url}', '${item.id}')">閲覧する</button>
+            if (unreadList.length === 0) {
+                listDiv.innerHTML = "<p>未読の重要なお知らせはありません。</p>";
+                document.getElementById('goMainBtn').disabled = false;
+            } else {
+                unreadList.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'unread-item';
+                    div.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong>${item.title}</strong><br>
+                                <small style="color:#666;">${item.description}</small>
                             </div>
-                        `;
-                        listDiv.appendChild(div);
-                    });
-                } else {
-                    // 未読がない場合のみリダイレクト
-                    const redirectUrl = localStorage.getItem('redirectUrl');
-                    window.location.href = redirectUrl || "https://www.yahoo.co.jp/";
-                }
-            } catch (e) {
-                console.error("Fetch Content Error:", e);
-                listDiv.innerHTML = "エラーが発生しました。";
+                            <button class="btn btn-sm" onclick="openContent('${item.url}', '${item.id}')">閲覧する</button>
+                        </div>
+                    `;
+                    listDiv.appendChild(div);
+                });
+                // 未読がある場合は「メインサイトへ進む」を無効化（すべて読むまで進ませない場合）
+                // 進ませても良い場合は disabled を false にしてください
+                document.getElementById('goMainBtn').disabled = true;
+                document.getElementById('goMainBtn').innerText = "未読を確認してください";
             }
         }
 
@@ -146,10 +154,17 @@
                     body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id })
                 });
                 window.open(url, '_blank');
-                location.reload();
+                
+                // 閲覧完了後、リストから消すために再ログイン相当の処理を内部で呼ぶか、リロード
+                alert("閲覧を記録しました。");
+                location.reload(); 
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function goToMain() {
+            window.location.href = finalRedirectUrl || "https://www.yahoo.co.jp/";
         }
 
         function handleLogout() {
