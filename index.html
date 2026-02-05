@@ -3,14 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム Ver 1.09</title>
+    <title>CF認証システム Ver 1.10</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
-        #alert-list { display: none; text-align: left; margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px; }
+        
+        /* リストスタイル */
         .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .unread-badge { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 5px; }
+        
+        /* アコーディオン制御 */
+        #accordion-trigger {
+            width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px;
+            cursor: pointer; font-weight: bold; color: #555; margin-top: 15px; text-align: center;
+            transition: background 0.2s; display: none;
+        }
+        #accordion-trigger:hover { background: #e9ecef; }
+        #alert-list { display: none; text-align: left; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px; }
+        #alert-list.active { display: block; }
+        
+        /* メインの自動既読アイテム用 */
+        #main-confirmed-area { margin-bottom: 20px; }
     </style>
 </head>
 <body id="main-body">
@@ -27,16 +41,19 @@
 
             <div id="unread-section" style="display: none;">
                 <h3 style="color:#28a745;">✅ 認証完了</h3>
-                <p id="badge-header" style="font-weight:bold; color:#007bff;">未読数: <span id="badge-area"></span></p>
+                
+                <div id="main-confirmed-area"></div>
+                
+                <div id="accordion-trigger" onclick="toggleAccordion()">
+                    <span id="accordion-label">他の未読を確認する</span> ▼
+                </div>
                 <div id="alert-list"></div>
-                <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:10px;">メインサイトへ</button>
+
+                <button id="continueBtn" class="btn" style="background:#28a745; width:100%; margin-top:20px;">メインサイトへ</button>
             </div>
             
             <p id="message" style="color:red;"></p>
-            
-            <div class="footer-links" id="footer-nav">
-                <a href="signup.html">新規登録</a> | <a href="forgot-password.html">パスワードを忘れた</a>
-            </div>
+            <div class="footer-links" id="footer-nav"><a href="signup.html">新規登録</a> | <a href="forgot-password.html">パスワードを忘れた</a></div>
         </div>
     </div>
 
@@ -85,19 +102,14 @@
                     unreadCache = res.data.unreadAlerts || [];
                     redirectUrlCache = res.data.redirectUrl;
                     
-                    // 【新機能】contentIdがあれば即座に既読通信を飛ばす
                     if (autoReadId) {
                         await fetch(GAS_URL, { 
                             method: "POST", 
                             body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: autoReadId }) 
                         });
-                        // リスト内の該当アイテムを既読扱いに設定
-                        unreadCache.forEach(item => {
-                            if (String(item.id) === String(autoReadId)) item.isAutoRead = true;
-                        });
+                        unreadCache.forEach(item => { if (String(item.id) === String(autoReadId)) item.isAutoRead = true; });
                     }
 
-                    // バッジカウント計算：(全未読) - (自動既読分がリストに含まれていれば1)
                     const hasAutoReadInList = unreadCache.some(item => item.isAutoRead);
                     currentUnreadCount = hasAutoReadInList ? unreadCache.length - 1 : unreadCache.length;
                     
@@ -105,63 +117,69 @@
                 } else {
                     msg.innerText = res.message;
                 }
-            } catch (e) {
-                msg.innerText = "通信エラーが発生しました。";
-            }
+            } catch (e) { msg.innerText = "通信エラーが発生しました。"; }
         }
 
         function showUnreadUI() {
             document.getElementById('login-fields').style.display = "none";
-            if (!autoReadId) {
-                document.getElementById('system-description').style.display = "none";
-            }
+            if (!autoReadId) document.getElementById('system-description').style.display = "none";
             document.getElementById('footer-nav').style.display = "none";
             document.getElementById('unread-section').style.display = "block";
             
-            updateBadge();
-            if (unreadCache.length > 0) {
-                document.getElementById('alert-list').style.display = "block";
-                renderList();
-            }
+            renderHybridList();
             document.getElementById('continueBtn').onclick = () => { window.location.href = redirectUrlCache; };
         }
 
-        function updateBadge() {
-            const area = document.getElementById('badge-area');
-            if (currentUnreadCount > 0) {
-                area.innerHTML = `<span class="unread-badge">${currentUnreadCount}</span>`;
-            } else {
-                area.innerHTML = `<span class="unread-badge" style="background:#28a745; color:white;">済</span>`;
-                document.getElementById('badge-header').innerHTML = "✅ すべての内容を確認しました";
+        function renderHybridList() {
+            const mainArea = document.getElementById('main-confirmed-area');
+            const listDiv = document.getElementById('alert-list');
+            const trigger = document.getElementById('accordion-trigger');
+            
+            let mainHtml = "";
+            let otherListHtml = "";
+            let otherCount = 0;
+
+            unreadCache.forEach((item, i) => {
+                const isMain = item.isAutoRead === true;
+                const html = `
+                    <div class="unread-item" style="${isMain ? 'background: #f0fff4; border-left: 5px solid #28a745;' : ''}">
+                        <div style="font-weight:bold;">
+                            <span id="icon-${i}">${isMain ? '✅' : '⭕'}</span> ${item.title}
+                        </div>
+                        <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
+                        <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" 
+                                style="color:${isMain ? '#666' : 'blue'}; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">
+                            ${isMain ? '確認済み（再表示）' : '▶ 内容を確認する'}
+                        </button>
+                    </div>`;
+
+                if (isMain) {
+                    mainHtml = html; // 今回の目的（2028）
+                } else {
+                    otherListHtml += html; // 他の未読
+                    otherCount++;
+                }
+            });
+
+            mainArea.innerHTML = mainHtml;
+            listDiv.innerHTML = otherListHtml;
+
+            if (otherCount > 0) {
+                trigger.style.display = "block";
+                document.getElementById('accordion-label').innerText = `他に未読が ${otherCount} 件あります`;
             }
         }
 
-        function renderList() {
-            const listDiv = document.getElementById('alert-list');
-            listDiv.innerHTML = unreadCache.map((item, i) => {
-                const isDone = item.isAutoRead === true;
-                return `
-                <div class="unread-item" style="${isDone ? 'opacity: 0.8; background: #f9f9f9;' : ''}">
-                    <div style="font-weight:bold;">
-                        <span id="icon-${i}">${isDone ? '✅' : '⭕'}</span> ${item.title}
-                    </div>
-                    <p style="font-size:12px; color:#666; margin: 5px 0;">${item.description || ""}</p>
-                    <button id="btn-${i}" onclick="handleCheck('${item.url}', '${item.id}', ${i})" 
-                            style="color:${isDone ? '#666' : 'blue'}; background:none; border:none; text-decoration:underline; cursor:pointer; padding:0;">
-                        ${isDone ? '確認済み（再表示）' : '▶ 内容を確認する'}
-                    </button>
-                </div>`;
-            }).join('');
+        function toggleAccordion() {
+            const list = document.getElementById('alert-list');
+            const trigger = document.getElementById('accordion-trigger');
+            list.classList.toggle('active');
+            trigger.innerHTML = list.classList.contains('active') ? "リストを閉じる ▲" : `他に未読が ${currentUnreadCount} 件あります ▼`;
         }
 
         async function handleCheck(url, id, i) {
             const icon = document.getElementById(`icon-${i}`);
-            const btn = document.getElementById(`btn-${i}`);
-            
-            if (icon.innerText === "✅") {
-                window.open(url, '_blank');
-                return;
-            }
+            if (icon.innerText === "✅") { window.open(url, '_blank'); return; }
 
             try {
                 await fetch(GAS_URL, { 
@@ -169,12 +187,10 @@
                     body: JSON.stringify({ action: "record_read", apiKey: API_KEY, userId: loggedInUserId, contentId: id }) 
                 });
                 icon.innerText = "✅";
-                btn.innerText = "確認済み（再表示）";
-                btn.style.color = "#666";
-                currentUnreadCount--;
-                updateBadge();
+                document.getElementById(`btn-${i}`).innerText = "確認済み";
+                document.getElementById(`btn-${i}`).style.color = "#666";
+                // アコーディオンラベルのカウント更新は必要に応じてここで行う
             } catch (e) { console.error(e); }
-            
             window.open(url, '_blank');
         }
     </script>
