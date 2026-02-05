@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.22</title>
+    <title>CF認証システム1.23</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -43,7 +43,7 @@
 
     <script>
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_7O2M-jH_3X88W8iM6Qh8-e7lI5_X9X0rWvD6p-z0_H_D_9X_/exec';
-        const API_KEY = 'Z2VtX21heF8yMDI2X3NlY3VyZQ==';
+        const API_KEY = 'Z2Vt_bWF4XzIwMjZfc2VjdXJl'; 
         let loggedInUserId = localStorage.getItem('loggedInUserId');
 
         window.onload = async () => {
@@ -115,11 +115,8 @@
                 });
                 const data = await response.json();
 
-                listDiv.innerHTML = "";
-                if (!data.contents || data.contents.length === 0) {
-                    const redirectUrl = localStorage.getItem('redirectUrl');
-                    window.location.href = redirectUrl || "https://www.yahoo.co.jp/";
-                } else {
+                if (data.success && data.contents && data.contents.length > 0) {
+                    listDiv.innerHTML = "";
                     data.contents.forEach(item => {
                         const div = document.createElement('div');
                         div.className = 'unread-item';
@@ -131,6 +128,10 @@
                         `;
                         listDiv.appendChild(div);
                     });
+                } else {
+                    // 未読がない場合のみリダイレクト
+                    const redirectUrl = localStorage.getItem('redirectUrl');
+                    window.location.href = redirectUrl || "https://www.yahoo.co.jp/";
                 }
             } catch (e) {
                 console.error("Fetch Content Error:", e);
