@@ -18,29 +18,46 @@
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h2><span id="system-name">CF認証システム</span></h2>
-
+            
             <div id="form-area">
-                <p class="description">アカウント作成の申請を行います。</p>
-                <div class="input-group"><input type="text" id="name" placeholder="お名前" required></div>
-                <div class="input-group"><input type="email" id="email" placeholder="メールアドレス" required></div>
-                <div class="input-group"><input type="password" id="password" placeholder="パスワード" required></div>
-                <button id="submitBtn" class="btn btn-primary" onclick="signup()">アカウント作成申請</button>
+                <p class="description">必要事項を入力して申請してください。</p>
+                <div class="input-group">
+                    <input type="text" id="name" placeholder="お名前" required>
+                </div>
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="メールアドレス" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="希望パスワード" required>
+                </div>
+                <button id="submitBtn" class="btn btn-primary" onclick="submitForm()">アカウント作成申請</button>
             </div>
 
-            <div id="success-area" style="display:none;">
-                <span class="success-icon">✉️</span>
+            <div id="success-area" style="display: none;">
+                <span class="success-icon">📩</span>
                 <h3>申請を受け付けました</h3>
                 <div class="step-box">
                     <div class="step-title">今後の流れ</div>
-                    <div class="step-item"><div class="step-num">1</div><div>入力したメールアドレスに認証メールが届きます。</div></div>
-                    <div class="step-item"><div class="step-num">2</div><div>メール内のURLをクリックして認証を完了してください。</div></div>
-                    <div class="step-item"><div class="step-num">3</div><div>管理者が確認後、ログイン可能になります。</div></div>
+                    <div class="step-item">
+                        <div class="step-num">1</div>
+                        <div>入力したメールアドレスに認証メールが届きます。</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">2</div>
+                        <div>メール内のリンクをクリックして認証を完了してください。</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">3</div>
+                        <div>管理者の承認後、ログイン可能になります。</div>
+                    </div>
                 </div>
-                <button class="btn btn-success" onclick="location.href='index.html'">ログイン画面へ</button>
+                <p style="font-size: 14px; color: #666;">※メールが届かない場合は、迷惑メールフォルダをご確認ください。</p>
+                <a href="index.html" class="btn btn-secondary" style="display: block; margin-top: 20px; text-decoration: none;">ログイン画面へ</a>
             </div>
 
-            <p id="message" class="status-message"></p>
-            <div id="footer-links-area" class="footer-links">
+            <div id="message" class="status-message" style="margin-top: 20px;"></div>
+            
+            <div class="footer-links" id="footer-links-area">
                 <a href="index.html" class="back-link">ログイン画面に戻る</a>
             </div>
         </div>
@@ -48,24 +65,26 @@
 
     <script src="config.js"></script>
     <script>
-        // キャッシュされた設定の反映
-        const cachedTitle = localStorage.getItem('cached_system_title');
-        const cachedBg = localStorage.getItem('cached_bg_color');
-        const cachedLogo = localStorage.getItem('cached_logo_url');
-        if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
-        if(cachedBg) document.body.style.setProperty('background', cachedBg, 'important');
-        if(cachedLogo && cachedLogo !== "none") document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px; height: auto;">`;
+        // 設定の反映
+        window.onload = function() {
+            const cachedTitle = localStorage.getItem('cached_system_title');
+            const cachedBg = localStorage.getItem('cached_bg_color');
+            const cachedLogo = localStorage.getItem('cached_logo_url');
+            if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
+            if(cachedBg) document.getElementById('main-body').style.backgroundColor = cachedBg;
+            if(cachedLogo) document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px;">`;
+        };
 
-        async function signup() {
+        async function submitForm() {
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const btn = document.getElementById('submitBtn');
             const msgDiv = document.getElementById('message');
+            const btn = document.getElementById('submitBtn');
 
             if (!name || !email || !password) {
                 msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "全項目入力してください。";
+                msgDiv.innerText = "すべての項目を入力してください。";
                 return;
             }
 
@@ -73,17 +92,38 @@
             btn.innerText = "送信中...";
 
             try {
+                // 通信エラー（CORS）回避のための修正版 fetch
                 const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    mode: "no-cors", // GASへのPOSTでブラウザエラーを防ぐ
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        action: "signup",
+                        apiKey: API_KEY,
+                        userName: name,
+                        userId: email,
+                        password: password
+                    })
+                });
+
+                // mode: "no-cors" の場合、レスポンス内容を読み取れないため、
+                // 送信できたこと自体を成功として扱うか、
+                // あるいは通常モードで試行してエラーハンドリングを行う
+                
+                // ここでは再度、標準的な fetch で成否を判断（GASのレスポンスを受け取る）
+                const resCheck = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({
                         action: "signup",
                         apiKey: API_KEY,
-                        userName: name,   // code.gsの[1]へ
-                        userId: email,    // code.gsの[0]へ
-                        password: password // code.gsの[2]へ
+                        userName: name,
+                        userId: email,
+                        password: password
                     })
                 });
-                const res = await response.json();
+                const res = await resCheck.json();
 
                 if (res.success) {
                     document.getElementById('form-area').style.display = "none";
@@ -97,8 +137,9 @@
                     btn.innerText = "アカウント作成申請";
                 }
             } catch (error) {
+                console.error("Fetch Error:", error);
                 msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "通信エラーが発生しました。";
+                msgDiv.innerText = "通信エラー。GASのデプロイ設定を確認してください。";
                 btn.disabled = false;
                 btn.innerText = "アカウント作成申請";
             }
