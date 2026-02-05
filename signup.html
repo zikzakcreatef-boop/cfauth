@@ -1,149 +1,52 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新規登録 - CF認証システム</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .success-icon { font-size: 64px; color: #28a745; margin-bottom: 20px; display: block; }
-        .step-box { text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 20px 0; border: 1px solid #eee; }
-        .step-title { font-weight: bold; margin-bottom: 12px; color: #333; font-size: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-        .step-item { display: flex; align-items: flex-start; margin-bottom: 10px; font-size: 14px; color: #555; }
-        .step-num { background: #007bff; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 10px; flex-shrink: 0; }
-    </style>
-</head>
-<body id="main-body">
-    <div class="container">
-        <div class="form-box">
-            <div id="logo-container" style="margin-bottom: 20px;"></div>
-            <h2><span id="system-name">CF認証システム</span></h2>
-            
-            <div id="form-area">
-                <p class="description">必要事項を入力して申請してください。</p>
-                <div class="input-group">
-                    <input type="text" id="name" placeholder="お名前" required>
-                </div>
-                <div class="input-group">
-                    <input type="email" id="email" placeholder="メールアドレス" required>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="password" placeholder="希望パスワード" required>
-                </div>
-                <button id="submitBtn" class="btn btn-primary" onclick="submitForm()">アカウント作成申請</button>
-            </div>
+<script>
+    async function submitSignup() {
+        const name = document.getElementById('userName').value;
+        const email = document.getElementById('userId').value;
+        const password = document.getElementById('password').value;
+        const btn = document.getElementById('submitBtn');
+        const msgDiv = document.getElementById('statusMsg');
 
-            <div id="success-area" style="display: none;">
-                <span class="success-icon">📩</span>
-                <h3>申請を受け付けました</h3>
-                <div class="step-box">
-                    <div class="step-title">今後の流れ</div>
-                    <div class="step-item">
-                        <div class="step-num">1</div>
-                        <div>入力したメールアドレスに認証メールが届きます。</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-num">2</div>
-                        <div>メール内のリンクをクリックして認証を完了してください。</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-num">3</div>
-                        <div>管理者の承認後、ログイン可能になります。</div>
-                    </div>
-                </div>
-                <p style="font-size: 14px; color: #666;">※メールが届かない場合は、迷惑メールフォルダをご確認ください。</p>
-                <a href="index.html" class="btn btn-secondary" style="display: block; margin-top: 20px; text-decoration: none;">ログイン画面へ</a>
-            </div>
+        if (!name || !email || !password) {
+            msgDiv.style.color = "#d93025";
+            msgDiv.innerText = "全項目入力してください。";
+            return;
+        }
 
-            <div id="message" class="status-message" style="margin-top: 20px;"></div>
-            
-            <div class="footer-links" id="footer-links-area">
-                <a href="index.html" class="back-link">ログイン画面に戻る</a>
-            </div>
-        </div>
-    </div>
+        btn.disabled = true;
+        btn.innerText = "送信中...";
 
-    <script src="config.js"></script>
-    <script>
-        // 設定の反映
-        window.onload = function() {
-            const cachedTitle = localStorage.getItem('cached_system_title');
-            const cachedBg = localStorage.getItem('cached_bg_color');
-            const cachedLogo = localStorage.getItem('cached_logo_url');
-            if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
-            if(cachedBg) document.getElementById('main-body').style.backgroundColor = cachedBg;
-            if(cachedLogo) document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width: 120px;">`;
-        };
+        try {
+            // mode: "no-cors" は絶対に使わないこと。JSONレスポンスが読めなくなるため。
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "signup",
+                    apiKey: API_KEY,
+                    userName: name,
+                    userId: email,
+                    password: password
+                })
+            });
+            const res = await response.json();
 
-        async function submitForm() {
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const msgDiv = document.getElementById('message');
-            const btn = document.getElementById('submitBtn');
-
-            if (!name || !email || !password) {
+            if (res.success) {
+                // 成功時は入力エリアを消して成功メッセージを表示
+                document.getElementById('form-area').style.display = "none";
+                document.getElementById('footer-links-area').style.display = "none";
+                document.getElementById('success-area').style.display = "block";
+                msgDiv.innerText = "";
+            } else {
                 msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "すべての項目を入力してください。";
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "送信中...";
-
-            try {
-                // 通信エラー（CORS）回避のための修正版 fetch
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    mode: "no-cors", // GASへのPOSTでブラウザエラーを防ぐ
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                        action: "signup",
-                        apiKey: API_KEY,
-                        userName: name,
-                        userId: email,
-                        password: password
-                    })
-                });
-
-                // mode: "no-cors" の場合、レスポンス内容を読み取れないため、
-                // 送信できたこと自体を成功として扱うか、
-                // あるいは通常モードで試行してエラーハンドリングを行う
-                
-                // ここでは再度、標準的な fetch で成否を判断（GASのレスポンスを受け取る）
-                const resCheck = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        action: "signup",
-                        apiKey: API_KEY,
-                        userName: name,
-                        userId: email,
-                        password: password
-                    })
-                });
-                const res = await resCheck.json();
-
-                if (res.success) {
-                    document.getElementById('form-area').style.display = "none";
-                    document.getElementById('footer-links-area').style.display = "none";
-                    document.getElementById('success-area').style.display = "block";
-                    msgDiv.innerText = "";
-                } else {
-                    msgDiv.style.color = "#d93025";
-                    msgDiv.innerText = res.message;
-                    btn.disabled = false;
-                    btn.innerText = "アカウント作成申請";
-                }
-            } catch (error) {
-                console.error("Fetch Error:", error);
-                msgDiv.style.color = "#d93025";
-                msgDiv.innerText = "通信エラー。GASのデプロイ設定を確認してください。";
+                msgDiv.innerText = res.message;
                 btn.disabled = false;
                 btn.innerText = "アカウント作成申請";
             }
+        } catch (error) {
+            console.error("Fetch error:", error);
+            msgDiv.style.color = "#d93025";
+            msgDiv.innerText = "通信エラーが発生しました。";
+            btn.disabled = false;
+            btn.innerText = "アカウント作成申請";
         }
-    </script>
-</body>
-</html>
+    }
+</script>
