@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム1.38</title>
+    <title>CF認証システム1.38F</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
@@ -20,16 +20,20 @@
 </head>
 <body id="main-body">
     <div id="loading-screen">読み込み中...</div>
+
     <div class="container" id="login-area" style="display:none;">
         <div class="form-box">
-            <h2 id="display-title">ログイン</h2>
-            <p id="display-desc"></p>
+            <h2 id="display-title" style="margin-bottom:10px;">CF認証システム v1.18</h2>
+            <p id="display-desc" style="font-size:0.9em; color:#666; margin-bottom:20px;">
+                クリエイトフジの認証システムです。<br>まずは新規利用申請をしてください。
+            </p>
             <input type="email" id="userId" placeholder="メールアドレス" required>
             <input type="password" id="password" placeholder="パスワード" required>
             <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">ログイン</button>
             <p id="errorMsg" style="color:red; margin-top:10px;"></p>
         </div>
     </div>
+
     <div class="container" id="content-area" style="display:none;">
         <div class="form-box">
             <div id="welcome-user" style="font-weight:bold; margin-bottom:20px;"></div>
@@ -60,12 +64,13 @@
                 });
                 const res = await response.json();
                 if (res.success) {
-                    // v1.11の挙動：GASから届いた値を最優先で反映
+                    // ここが「物理的な1・2行目」の書き換え
                     document.getElementById('display-title').innerText = res.title;
-                    document.getElementById('display-desc').innerText = res.description || "";
-                    document.title = res.title;
+                    document.getElementById('display-desc').innerText = res.description;
+                    if (res.bgColor) document.body.style.backgroundColor = res.bgColor;
                 }
-            } catch (e) { console.error(e); } finally {
+            } catch (e) { console.error("Config Load Error"); }
+            finally {
                 document.getElementById('login-area').style.display = 'block';
                 document.getElementById('loading-screen').style.display = 'none';
                 document.body.classList.add('loaded');
@@ -127,17 +132,16 @@
                 }
             });
 
-            // 【重要】画像(image_cd30e4.png)の挙動を完全再現
             if (hasMatch) {
                 trigger.style.display = (others > 0) ? "block" : "none";
-                subDiv.style.display = "none"; // 強制的に閉じる
+                subDiv.style.display = "none";
                 subDiv.classList.remove('active');
             } else {
                 trigger.style.display = "block";
-                subDiv.style.display = "block"; // 強制的に開く
+                subDiv.style.display = "block";
                 subDiv.classList.add('active');
             }
-            refreshLabels(others, hasMatch);
+            refreshLabels(others);
         }
 
         function renderItem(item, container, idx) {
@@ -160,21 +164,16 @@
                 icon.innerText = "✅";
                 btn.innerText = "確認済み";
                 unreadCountGlobal--;
-                
-                // アコーディオン内の未読を再計算
                 const subUnread = Array.from(document.getElementById('alert-list').querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
-                refreshLabels(subUnread, true); // hasMatchはtrue固定で再描画
+                refreshLabels(subUnread);
                 window.open(url, '_blank');
             } catch (e) { btn.innerText = "▶ 内容を確認する"; }
         }
 
-        function refreshLabels(subCount, hasMatch) {
+        function refreshLabels(subCount) {
             const label = document.getElementById('accordion-label');
-            const list = document.getElementById('alert-list');
-            const isOpened = list.classList.contains('active');
-            
+            const isOpened = document.getElementById('alert-list').classList.contains('active');
             if (subCount > 0) {
-                // スクショ image_cd30e4.png の文言に準拠
                 label.innerText = isOpened ? "リストを閉じる ▲" : `未読リストを確認する ▼ (残り ${subCount} 件)`;
             } else {
                 label.innerText = "✅ すべての未読を確認しました";
@@ -186,9 +185,8 @@
             const list = document.getElementById('alert-list');
             const act = list.classList.toggle('active');
             list.style.display = act ? "block" : "none";
-            // 現在のアコーディオン内未読数を数えてラベル更新
             const subCount = Array.from(list.querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
-            refreshLabels(subCount, true);
+            refreshLabels(subCount);
         }
 
         function updateMainButton(ok) {
