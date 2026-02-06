@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.39</title>
+    <title>CF認証システム v1.41</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; }
         .loaded { opacity: 1; }
-        .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        #accordion-trigger { width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; color: #555; margin-top: 15px; text-align: center; display: none; }
-        #alert-list { display: none; text-align: left; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px; }
-        #alert-list.active { display: block !important; }
-        .btn-main { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.2s; }
-        .btn-main:disabled { background: #ccc; cursor: not-allowed; }
+        .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        #after-login-area { display: none; margin-top: 20px; border-top: 2px dashed #eee; padding-top: 20px; }
+        #alert-list { margin-top: 15px; }
+        .btn-main { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-check { width: 100%; margin-top: 8px; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; }
     </style>
 </head>
 <body id="main-body">
@@ -26,14 +25,15 @@
             <div id="login-form-area">
                 <input type="text" id="userId" placeholder="メールアドレス">
                 <input type="password" id="password" placeholder="パスワード">
-                <button class="btn-main" id="goMainBtn" onclick="attemptLogin()" disabled>未読を確認してください</button>
+                <button class="btn-main" id="loginBtn" onclick="attemptLogin()">ログイン</button>
                 <div id="errorMsg" style="color:#d93025; margin-top:10px; font-size:14px;"></div>
             </div>
 
-            <div id="accordion-trigger" onclick="toggleAccordion()">
-                <span id="accordion-label">未読リストを確認する ▼</span>
+            <div id="after-login-area">
+                <div style="font-weight:bold; color:#d93025; margin-bottom:10px;">未確認の重要文書があります</div>
+                <div id="alert-list"></div>
+                <button class="btn-main" id="goMainBtn" onclick="finalizeRedirect()" style="background:#28a745; margin-top:20px;">すべて確認してメインサイトへ</button>
             </div>
-            <div id="alert-list"></div>
 
             <div class="footer-links" style="margin-top:30px; font-size:13px;">
                 <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
@@ -43,161 +43,96 @@
 
     <script src="config.js"></script>
     <script>
-        let unreadCountGlobal = 0;
+        let cachedRedirectUrl = "";
+        const urlParams = new URLSearchParams(window.location.search);
+        const contentId = urlParams.get('contentId'); // contentIdを正とする
 
         window.onload = function() {
-            updateUI();
+            initUI();
         };
 
-        async function updateUI() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const contentId = urlParams.get('id');
-
+        async function initUI() {
             try {
-                // 1. UI設定の取得
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentId })
                 });
                 const res = await response.json();
-
                 if (res.success) {
-                    // タイトルと説明文の即時置換
                     document.getElementById('system-name').innerText = res.title;
                     const descElem = document.querySelector('.description');
                     if (descElem) descElem.innerText = res.description;
-
-                    // デザイン反映
                     document.body.style.backgroundColor = res.bg || "#f0f2f5";
                     if (res.logo && res.logo !== 'none') {
                         document.getElementById('logo-container').innerHTML = `<img src="${res.logo}" style="max-width:120px;">`;
                     }
-
-                    // 2. 未読リストの取得と1.11ロジック（抽出）
-                    const listRes = await fetch(GAS_URL, {
-                        method: "POST",
-                        body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY })
-                    });
-                    const d = await listRes.json();
-
-                    if (d.success && d.unread.length > 0) {
-                        // 【物理的抽出】ID指定がある場合、それをリストから除外する
-                        let subList = d.unread;
-                        if (contentId) {
-                            subList = d.unread.filter(item => String(item.id) !== String(contentId));
-                        }
-
-                        unreadCountGlobal = subList.length;
-                        renderAlertList(subList);
-                        document.getElementById('accordion-trigger').style.display = "block";
-                        refreshLabels(unreadCountGlobal);
-                    } else {
-                        unreadCountGlobal = 0;
-                        document.getElementById('accordion-trigger').style.display = "none";
-                        refreshLabels(0);
-                    }
                 }
-            } catch (e) {
-                console.error("UI Update Error:", e);
-                document.getElementById('system-name').innerText = "通信エラー";
-            } finally {
-                document.body.classList.add('loaded');
-            }
+            } catch (e) { console.error("Init Error:", e); }
+            document.body.classList.add('loaded');
+        }
+
+        async function attemptLogin() {
+            const id = document.getElementById('userId').value;
+            const pw = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            const err = document.getElementById('errorMsg');
+
+            if (!id || !pw) { err.innerText = "IDとパスワードを入力してください。"; return; }
+
+            btn.disabled = true;
+            btn.innerText = "認証中...";
+
+            try {
+                // GAS側でログインと同時にcontentIdの既読化も行う
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw, contentId: contentId })
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    cachedRedirectUrl = res.redirectUrl;
+                    checkUnreadAndFlow(id); 
+                } else {
+                    err.innerText = res.message;
+                    btn.disabled = false;
+                    btn.innerText = "ログイン";
+                }
+            } catch (e) { err.innerText = "通信エラー"; btn.disabled = false; }
+        }
+
+        async function checkUnreadAndFlow(userId) {
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })
+                });
+                const d = await response.json();
+
+                // 未読がある場合のみリストを表示。なければ即遷移。
+                if (d.success && d.unread.length > 0) {
+                    document.getElementById('login-form-area').style.display = "none";
+                    document.getElementById('after-login-area').style.display = "block";
+                    renderAlertList(d.unread);
+                } else {
+                    finalizeRedirect();
+                }
+            } catch (e) { finalizeRedirect(); }
         }
 
         function renderAlertList(list) {
             const container = document.getElementById('alert-list');
             container.innerHTML = list.map(item => `
                 <div class="unread-item">
-                    <div style="font-size:12px; color:#999; margin-bottom:4px;">未読の文書</div>
-                    <div style="font-weight:bold; margin-bottom:8px;">${item.title}</div>
-                    <button class="btn-check" onclick="openContent('${item.id}', '${item.url}', this)" 
-                            style="width:100%; padding:8px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;">
-                        <span class="check-icon">▶</span> 内容を確認する
-                    </button>
+                    <div style="font-size:11px; color:#999;">未読</div>
+                    <div style="font-weight:bold; margin:4px 0;">${item.title}</div>
+                    <button class="btn-check" onclick="window.open('${item.url}', '_blank')">内容を表示して確認</button>
                 </div>
             `).join('');
         }
 
-        async function openContent(id, url, btn) {
-            const icon = btn.querySelector('.check-icon');
-            if (icon.innerText === "✅") {
-                window.open(url, '_blank');
-                return;
-            }
-            try {
-                icon.innerText = "⏳";
-                const r = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, contentId: id, userId: "guest_preview" })
-                });
-                icon.innerText = "✅";
-                btn.style.background = "#6c757d";
-                const subUnread = Array.from(document.querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
-                refreshLabels(subUnread);
-                window.open(url, '_blank');
-            } catch (e) { 
-                icon.innerText = "▶"; 
-            }
-        }
-
-        function refreshLabels(subCount) {
-            const label = document.getElementById('accordion-label');
-            const isOpened = document.getElementById('alert-list').classList.contains('active');
-            if (subCount > 0) {
-                label.innerText = isOpened ? "リストを閉じる ▲" : `未読リストを確認する ▼ (残り ${subCount} 件)`;
-            } else {
-                label.innerText = "✅ すべての未読を確認しました";
-            }
-            updateMainButton(subCount <= 0);
-        }
-
-        function toggleAccordion() {
-            const list = document.getElementById('alert-list');
-            const act = list.classList.toggle('active');
-            list.style.display = act ? "block" : "none";
-            const subCount = Array.from(list.querySelectorAll('.check-icon')).filter(i => i.innerText !== "✅").length;
-            refreshLabels(subCount);
-        }
-
-        function updateMainButton(ok) {
-            const b = document.getElementById('goMainBtn');
-            b.disabled = !ok;
-            b.innerText = ok ? "確認完了：メインサイトへ進む" : "未読を確認してください";
-            b.style.background = ok ? "#28a745" : "#ccc";
-        }
-
-        async function attemptLogin() {
-            const id = document.getElementById('userId').value;
-            const pw = document.getElementById('password').value;
-            const err = document.getElementById('errorMsg');
-            const btn = document.getElementById('goMainBtn');
-
-            if (!id || !pw) {
-                err.innerText = "IDとパスワードを入力してください。";
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "認証中...";
-
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw })
-                });
-                const res = await response.json();
-                if (res.success) {
-                    window.location.href = res.redirectUrl;
-                } else {
-                    err.innerText = res.message;
-                    btn.disabled = false;
-                    btn.innerText = "確認完了：メインサイトへ進む";
-                }
-            } catch (e) {
-                err.innerText = "通信エラーが発生しました。";
-                btn.disabled = false;
-            }
+        function finalizeRedirect() {
+            if (cachedRedirectUrl) window.location.href = cachedRedirectUrl;
         }
     </script>
 </body>
