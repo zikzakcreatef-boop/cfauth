@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.41</title>
+    <title>CF認証システム v1.42</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body { opacity: 0; transition: opacity 0.3s; margin: 0; }
+        body { opacity: 0; transition: opacity 0.3s; margin: 0; background: #f0f2f5; }
         .loaded { opacity: 1; }
-        .unread-item { padding:12px 15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; text-align: left; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        #after-login-area { display: none; margin-top: 20px; border-top: 2px dashed #eee; padding-top: 20px; }
-        #alert-list { margin-top: 15px; }
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; text-align: left; position: relative; }
+        #after-login-area { display: none; margin-top: 20px; }
+        #alert-list { display: none; margin-top: 15px; }
         .btn-main { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-check { width: 100%; margin-top: 8px; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .accordion-btn { width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; color: #555; }
+        .status-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #ff4757; color: white; display: inline-block; margin-bottom: 5px; }
     </style>
 </head>
 <body id="main-body">
@@ -20,7 +21,7 @@
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
             <h2><span id="system-name">読み込み中...</span></h2>
-            <p class="description">...</p>
+            <p id="system-description" class="description">...</p>
             
             <div id="login-form-area">
                 <input type="text" id="userId" placeholder="メールアドレス">
@@ -30,9 +31,12 @@
             </div>
 
             <div id="after-login-area">
-                <div style="font-weight:bold; color:#d93025; margin-bottom:10px;">未確認の重要文書があります</div>
+                <div id="process-msg" style="color:#28a745; font-weight:bold; margin-bottom:15px; font-size: 14px;"></div>
+                <button id="unread-summary-btn" class="accordion-btn" onclick="toggleAccordion()">
+                    未確認の文書が 0 件あります ▼
+                </button>
                 <div id="alert-list"></div>
-                <button class="btn-main" id="goMainBtn" onclick="finalizeRedirect()" style="background:#28a745; margin-top:20px;">すべて確認してメインサイトへ</button>
+                <button class="btn-main" id="goMainBtn" onclick="finalizeRedirect()" style="background:#2f3542; margin-top:20px;">メインサイトへ進む</button>
             </div>
 
             <div class="footer-links" style="margin-top:30px; font-size:13px;">
@@ -44,12 +48,11 @@
     <script src="config.js"></script>
     <script>
         let cachedRedirectUrl = "";
+        let currentUserId = "";
         const urlParams = new URLSearchParams(window.location.search);
-        const contentId = urlParams.get('contentId'); // contentIdを正とする
+        const contentId = urlParams.get('contentId');
 
-        window.onload = function() {
-            initUI();
-        };
+        window.onload = initUI;
 
         async function initUI() {
             try {
@@ -60,30 +63,19 @@
                 const res = await response.json();
                 if (res.success) {
                     document.getElementById('system-name').innerText = res.title;
-                    const descElem = document.querySelector('.description');
-                    if (descElem) descElem.innerText = res.description;
-                    document.body.style.backgroundColor = res.bg || "#f0f2f5";
-                    if (res.logo && res.logo !== 'none') {
-                        document.getElementById('logo-container').innerHTML = `<img src="${res.logo}" style="max-width:120px;">`;
-                    }
+                    document.getElementById('system-description').innerText = res.description;
                 }
-            } catch (e) { console.error("Init Error:", e); }
+            } catch (e) { console.error(e); }
             document.body.classList.add('loaded');
         }
 
         async function attemptLogin() {
             const id = document.getElementById('userId').value;
             const pw = document.getElementById('password').value;
-            const btn = document.getElementById('loginBtn');
-            const err = document.getElementById('errorMsg');
-
-            if (!id || !pw) { err.innerText = "IDとパスワードを入力してください。"; return; }
-
-            btn.disabled = true;
-            btn.innerText = "認証中...";
+            if (!id || !pw) return;
+            currentUserId = id;
 
             try {
-                // GAS側でログインと同時にcontentIdの既読化も行う
                 const response = await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw, contentId: contentId })
@@ -92,43 +84,58 @@
 
                 if (res.success) {
                     cachedRedirectUrl = res.redirectUrl;
-                    checkUnreadAndFlow(id); 
-                } else {
-                    err.innerText = res.message;
-                    btn.disabled = false;
-                    btn.innerText = "ログイン";
-                }
-            } catch (e) { err.innerText = "通信エラー"; btn.disabled = false; }
-        }
-
-        async function checkUnreadAndFlow(userId) {
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })
-                });
-                const d = await response.json();
-
-                // 未読がある場合のみリストを表示。なければ即遷移。
-                if (d.success && d.unread.length > 0) {
                     document.getElementById('login-form-area').style.display = "none";
                     document.getElementById('after-login-area').style.display = "block";
-                    renderAlertList(d.unread);
+                    if (res.processedMessage) {
+                        document.getElementById('process-msg').innerText = "✅ " + res.processedMessage;
+                    }
+                    loadUnreadList(id);
                 } else {
-                    finalizeRedirect();
+                    document.getElementById('errorMsg').innerText = res.message;
                 }
-            } catch (e) { finalizeRedirect(); }
+            } catch (e) { document.getElementById('errorMsg').innerText = "通信エラー"; }
+        }
+
+        async function loadUnreadList(userId) {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })
+            });
+            const d = await response.json();
+            if (d.success) {
+                document.getElementById('unread-summary-btn').innerText = `未確認の文書が ${d.unread.length} 件あります ▼`;
+                renderAlertList(d.unread);
+            }
         }
 
         function renderAlertList(list) {
             const container = document.getElementById('alert-list');
             container.innerHTML = list.map(item => `
-                <div class="unread-item">
-                    <div style="font-size:11px; color:#999;">未読</div>
-                    <div style="font-weight:bold; margin:4px 0;">${item.title}</div>
-                    <button class="btn-check" onclick="window.open('${item.url}', '_blank')">内容を表示して確認</button>
+                <div class="unread-item" id="item-${item.id}">
+                    <span class="status-badge" id="badge-${item.id}">未読</span>
+                    <div style="font-weight:bold;">${item.title}</div>
+                    <button onclick="confirmContent('${item.id}', '${item.url}')" style="width:100%; margin-top:8px; padding:8px; cursor:pointer; background:#f8f9fa; border:1px solid #ddd; border-radius:4px;">内容を表示して確認</button>
                 </div>
             `).join('');
+        }
+
+        async function confirmContent(id, url) {
+            window.open(url, '_blank');
+            // 個別既読処理（ログ ＋ 物理移動）
+            await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, userId: currentUserId, contentId: id })
+            });
+            const badge = document.getElementById(`badge-${id}`);
+            if (badge) {
+                badge.innerText = "確認済";
+                badge.style.background = "#2ed573";
+            }
+        }
+
+        function toggleAccordion() {
+            const list = document.getElementById('alert-list');
+            list.style.display = (list.style.display === "none" || list.style.display === "") ? "block" : "none";
         }
 
         function finalizeRedirect() {
