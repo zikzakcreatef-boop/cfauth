@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.42</title>
+    <title>CF認証システム v1.43</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; background: #f0f2f5; }
         .loaded { opacity: 1; }
-        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; text-align: left; position: relative; }
+        .unread-item { padding:15px; border-bottom:1px solid #ddd; background:#fff; border-radius:8px; margin-bottom:10px; text-align: left; }
         #after-login-area { display: none; margin-top: 20px; }
         #alert-list { display: none; margin-top: 15px; }
         .btn-main { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
@@ -26,17 +26,16 @@
             <div id="login-form-area">
                 <input type="text" id="userId" placeholder="メールアドレス">
                 <input type="password" id="password" placeholder="パスワード">
-                <button class="btn-main" id="loginBtn" onclick="attemptLogin()">ログイン</button>
+                <button class="btn-main" onclick="attemptLogin()">ログイン</button>
                 <div id="errorMsg" style="color:#d93025; margin-top:10px; font-size:14px;"></div>
             </div>
 
             <div id="after-login-area">
-                <div id="process-msg" style="color:#28a745; font-weight:bold; margin-bottom:15px; font-size: 14px;"></div>
                 <button id="unread-summary-btn" class="accordion-btn" onclick="toggleAccordion()">
                     未確認の文書が 0 件あります ▼
                 </button>
                 <div id="alert-list"></div>
-                <button class="btn-main" id="goMainBtn" onclick="finalizeRedirect()" style="background:#2f3542; margin-top:20px;">メインサイトへ進む</button>
+                <button class="btn-main" onclick="finalizeRedirect()" style="background:#2f3542; margin-top:20px;">メインサイトへ進む</button>
             </div>
 
             <div class="footer-links" style="margin-top:30px; font-size:13px;">
@@ -55,17 +54,12 @@
         window.onload = initUI;
 
         async function initUI() {
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentId })
-                });
-                const res = await response.json();
-                if (res.success) {
-                    document.getElementById('system-name').innerText = res.title;
-                    document.getElementById('system-description').innerText = res.description;
-                }
-            } catch (e) { console.error(e); }
+            const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentId })});
+            const res = await response.json();
+            if (res.success) {
+                document.getElementById('system-name').innerText = res.title;
+                document.getElementById('system-description').innerText = res.description;
+            }
             document.body.classList.add('loaded');
         }
 
@@ -75,34 +69,32 @@
             if (!id || !pw) return;
             currentUserId = id;
 
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw, contentId: contentId })
-                });
-                const res = await response.json();
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw, contentId: contentId })
+            });
+            const res = await response.json();
 
-                if (res.success) {
-                    cachedRedirectUrl = res.redirectUrl;
-                    document.getElementById('login-form-area').style.display = "none";
-                    document.getElementById('after-login-area').style.display = "block";
-                    if (res.processedMessage) {
-                        document.getElementById('process-msg').innerText = "✅ " + res.processedMessage;
-                    }
-                    loadUnreadList(id);
-                } else {
-                    document.getElementById('errorMsg').innerText = res.message;
+            if (res.success) {
+                cachedRedirectUrl = res.redirectUrl;
+                document.getElementById('login-form-area').style.display = "none";
+                document.getElementById('after-login-area').style.display = "block";
+                
+                // 指摘①の修正: ディスクリプションを既読完了メッセージに差し替え
+                if (res.processedMessage) {
+                    document.getElementById('system-description').innerHTML = `<span style="color:#28a745; font-weight:bold;">✅ ${res.processedMessage}</span>`;
                 }
-            } catch (e) { document.getElementById('errorMsg').innerText = "通信エラー"; }
+                loadUnreadList(id);
+            } else {
+                document.getElementById('errorMsg').innerText = res.message;
+            }
         }
 
         async function loadUnreadList(userId) {
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })
-            });
+            const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })});
             const d = await response.json();
             if (d.success) {
+                // 指認④の修正: 件数ラベルの動的更新
                 document.getElementById('unread-summary-btn').innerText = `未確認の文書が ${d.unread.length} 件あります ▼`;
                 renderAlertList(d.unread);
             }
@@ -111,8 +103,8 @@
         function renderAlertList(list) {
             const container = document.getElementById('alert-list');
             container.innerHTML = list.map(item => `
-                <div class="unread-item" id="item-${item.id}">
-                    <span class="status-badge" id="badge-${item.id}">未読</span>
+                <div class="unread-item">
+                    <span class="status-badge">未読</span>
                     <div style="font-weight:bold;">${item.title}</div>
                     <button onclick="confirmContent('${item.id}', '${item.url}')" style="width:100%; margin-top:8px; padding:8px; cursor:pointer; background:#f8f9fa; border:1px solid #ddd; border-radius:4px;">内容を表示して確認</button>
                 </div>
@@ -121,16 +113,12 @@
 
         async function confirmContent(id, url) {
             window.open(url, '_blank');
-            // 個別既読処理（ログ ＋ 物理移動）
             await fetch(GAS_URL, {
                 method: "POST",
                 body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, userId: currentUserId, contentId: id })
             });
-            const badge = document.getElementById(`badge-${id}`);
-            if (badge) {
-                badge.innerText = "確認済";
-                badge.style.background = "#2ed573";
-            }
+            // 指摘④の解決: 処理後にリストを再取得して件数を減らす
+            loadUnreadList(currentUserId);
         }
 
         function toggleAccordion() {
@@ -138,9 +126,7 @@
             list.style.display = (list.style.display === "none" || list.style.display === "") ? "block" : "none";
         }
 
-        function finalizeRedirect() {
-            if (cachedRedirectUrl) window.location.href = cachedRedirectUrl;
-        }
+        function finalizeRedirect() { if (cachedRedirectUrl) window.location.href = cachedRedirectUrl; }
     </script>
 </body>
 </html>
