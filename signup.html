@@ -3,54 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新規利用申請 - CF認証システム</title>
+    <title>新規登録 - CF認証システム</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        .line-btn {
-            background-color: #06C755;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .line-btn:hover { background-color: #05b34c; }
-        #line-connect-area {
-            display: none;
-            margin-top: 20px;
-            padding: 20px;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 12px;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <div id="form-area" class="form-box">
             <h2>新規利用申請</h2>
             <p class="description">必要事項を入力して申請してください。</p>
-            
-            <input type="text" id="userName" placeholder="お名前" required>
-            <input type="email" id="userId" placeholder="メールアドレス" required>
-            <input type="password" id="password" placeholder="パスワード" required>
-            
-            <div class="input-group" style="text-align: left; margin: 15px 5px;">
-                <label style="font-size: 14px; color: #555; cursor: pointer;">
-                    <input type="checkbox" id="lineNotify" style="width: auto; margin-right: 8px;"> LINE通知を希望する
-                </label>
-            </div>
-            
+            <input type="text" id="userName" placeholder="お名前">
+            <input type="email" id="userId" placeholder="メールアドレス">
+            <input type="password" id="password" placeholder="パスワード">
             <button id="submitBtn" class="btn btn-success" onclick="submitSignup()">申請する</button>
-            
-            <p id="statusMsg" style="color:#d93025; margin-top:10px; font-size:14px;"></p>
-            
+            <p id="statusMsg" style="color:#d93025; margin-top:10px;"></p>
             <div class="footer-links" style="margin-top:20px;">
                 <a href="index.html">ログイン画面へ戻る</a>
             </div>
@@ -58,18 +23,11 @@
 
         <div id="success-area" class="form-box" style="display:none;">
             <h2 style="color:#28a745;">申請を受け付けました</h2>
-            <p class="description">ご入力いただいたメールアドレス宛に確認メールを送信しました。メール内のリンクをクリックして確認を完了してください。</p>
-            
-            <div id="line-connect-area">
-                <p style="font-size: 14px; color: #166534; font-weight: bold; margin-bottom: 10px;">💡 さらに便利に！</p>
-                <p style="font-size: 13px; color: #374151;">LINE連携を完了させると、パトロール結果などの通知をLINEで直接受け取れます。</p>
-                <button onclick="startLineAuth()" class="line-btn">
-                    <span>LINE通知を連携する</span>
-                </button>
-            </div>
-            
-            <div class="footer-links" style="margin-top:30px;">
-                <a href="index.html" class="btn btn-secondary">ログイン画面へ</a>
+            <p>ご入力いただいたメールアドレス宛に確認メールを送信しました。</p>
+            <p>メール内のリンクをクリックして、メール認証を完了させてください。</p>
+            <p style="font-size: 0.9em; color: #666; margin-top: 15px;">※認証完了後、管理者が承認するまでログインはできません。</p>
+            <div class="footer-links" style="margin-top:20px;">
+                <a href="index.html" class="btn btn-primary">閉じる</a>
             </div>
         </div>
     </div>
@@ -80,7 +38,6 @@
             const name = document.getElementById('userName').value;
             const email = document.getElementById('userId').value;
             const password = document.getElementById('password').value;
-            const wantsLine = document.getElementById('lineNotify').checked;
             const btn = document.getElementById('submitBtn');
             const msg = document.getElementById('statusMsg');
 
@@ -89,8 +46,9 @@
                 return;
             }
 
+            msg.innerText = "";
             btn.disabled = true;
-            btn.innerText = "申請中...";
+            btn.innerText = "送信中...";
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -108,11 +66,6 @@
                 if (res.success) {
                     document.getElementById('form-area').style.display = 'none';
                     document.getElementById('success-area').style.display = 'block';
-                    
-                    if (wantsLine) {
-                        document.getElementById('line-connect-area').style.display = 'block';
-                        localStorage.setItem('temp_signup_email', email);
-                    }
                 } else {
                     msg.innerText = res.message;
                     btn.disabled = false;
@@ -122,28 +75,6 @@
                 msg.innerText = "通信エラーが発生しました。";
                 btn.disabled = false;
                 btn.innerText = "申請する";
-            }
-        }
-
-        async function startLineAuth() {
-            const email = localStorage.getItem('temp_signup_email');
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        action: "get_line_auth_url",
-                        apiKey: API_KEY,
-                        userId: email
-                    })
-                });
-                const res = await response.json();
-                if (res.success) {
-                    window.location.href = res.url;
-                } else {
-                    alert("LINE連携用URLの生成に失敗しました: " + res.message);
-                }
-            } catch (e) {
-                alert("通信エラーが発生しました。");
             }
         }
     </script>
