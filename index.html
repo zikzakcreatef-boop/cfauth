@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.44</title>
+    <title>CF認証システム v1.45</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; background: #f0f2f5; }
@@ -13,89 +13,175 @@
         #alert-list { display: none; margin-top: 15px; }
         .btn-main { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .accordion-btn { width: 100%; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-weight: bold; color: #555; }
-        .status-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #ff4757; color: white; display: inline-block; margin-bottom: 5px; }
+        .status-badge { font-size: 10px; padding: 2px 6px; background: #ff4757; color: white; border-radius: 4px; vertical-align: middle; margin-right: 8px; }
     </style>
 </head>
 <body id="main-body">
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">処理中...</div>
+    </div>
+
     <div class="container">
         <div class="form-box">
             <div id="logo-container" style="margin-bottom: 20px;"></div>
-            <h2><span id="system-name">読み込み中...</span></h2>
-            <p id="system-description" class="description">...</p>
+            <h2><span id="system-name">CF認証システム</span></h2>
             
-            <div id="login-form-area">
-                <input type="text" id="userId" placeholder="メールアドレス">
-                <input type="password" id="password" placeholder="パスワード">
-                <button class="btn-main" onclick="attemptLogin()">ログイン</button>
-                <div id="errorMsg" style="color:#d93025; margin-top:10px; font-size:14px;"></div>
+            <div id="login-form">
+                <p class="description">メールアドレスとパスワードで<br>ログインしてください。</p>
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="メールアドレス" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="パスワード" required>
+                </div>
+                <button id="loginBtn" class="btn-main" onclick="handleLogin()">ログイン</button>
+                <p id="errorMsg" style="color:#d93025; margin-top:10px; font-size:14px;"></p>
+                
+                <div class="footer-links" style="margin-top:20px; font-size:13px;">
+                    <a href="signup.html">新規利用申請はこちら</a><br><br>
+                    <a href="forgot-password.html">パスワードを忘れた場合</a>
+                </div>
             </div>
 
             <div id="after-login-area">
-                <button id="unread-summary-btn" class="accordion-btn" onclick="toggleAccordion()">
-                    未確認の文書が 0 件あります ▼
+                <p id="welcome-msg" style="font-weight:bold; margin-bottom:10px;"></p>
+                <button id="unread-accordion" class="accordion-btn" onclick="toggleAccordion()">
+                    読み込み中...
                 </button>
                 <div id="alert-list"></div>
-                <button class="btn-main" onclick="finalizeRedirect()" style="background:#2f3542; margin-top:20px;">メインサイトへ進む</button>
-            </div>
-
-            <div class="footer-links" style="margin-top:30px; font-size:13px;">
-                <a href="signup.html">新規利用申請</a> | <a href="forgot-password.html">パスワードを忘れた</a>
+                <button class="btn-main" style="margin-top:20px; background:#6c757d;" onclick="handleLogout()">ログアウト</button>
             </div>
         </div>
     </div>
 
     <script src="config.js"></script>
     <script>
-        let cachedRedirectUrl = "";
         let currentUserId = "";
-        const urlParams = new URLSearchParams(window.location.search);
-        const contentId = urlParams.get('contentId');
 
-        window.onload = initUI;
-
-        async function initUI() {
-            const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_ui_config", apiKey: API_KEY, contentId: contentId })});
-            const res = await response.json();
-            if (res.success) {
-                document.getElementById('system-name').innerText = res.title;
-                document.getElementById('system-description').innerText = res.description;
-            }
-            document.body.classList.add('loaded');
+        // v1.45 ローディング制御関数
+        function showLoading(isVisible) {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = isVisible ? 'flex' : 'none';
         }
 
-        async function attemptLogin() {
-            const id = document.getElementById('userId').value;
-            const pw = document.getElementById('password').value;
-            if (!id || !pw) return;
-            currentUserId = id;
-
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: id, password: pw, contentId: contentId })
-            });
-            const res = await response.json();
-
-            if (res.success) {
-                cachedRedirectUrl = res.redirectUrl;
-                document.getElementById('login-form-area').style.display = "none";
-                document.getElementById('after-login-area').style.display = "block";
-                
-                // 指摘①の修正: ディスクリプションを既読完了メッセージに差し替え
-                if (res.processedMessage) {
-                    document.getElementById('system-description').innerHTML = `<span style="color:#28a745; font-weight:bold;">✅ ${res.processedMessage}</span>`;
-                }
-                loadUnreadList(id);
-            } else {
-                document.getElementById('errorMsg').innerText = res.message;
+        window.onload = async function() {
+            // パラメータにcontentIdがあるかチェック
+            const urlParams = new URLSearchParams(window.location.search);
+            const contentId = urlParams.get('contentId');
+            if (contentId) {
+                sessionStorage.setItem('pendingContentId', contentId);
             }
+
+            // キャッシュから設定を復元（高速化）
+            const cachedTitle = localStorage.getItem('cached_system_title');
+            const cachedBg = localStorage.getItem('cached_bg_color');
+            const cachedLogo = localStorage.getItem('cached_logo_url');
+
+            if(cachedTitle) document.getElementById('system-name').innerText = cachedTitle;
+            if(cachedBg) document.getElementById('main-body').style.backgroundColor = cachedBg;
+            if(cachedLogo) document.getElementById('logo-container').innerHTML = `<img src="${cachedLogo}" style="max-width:120px;">`;
+
+            document.body.classList.add('loaded');
+
+            // 最新設定を取得して更新
+            try {
+                const response = await fetch(GAS_URL + "?action=get_configs&apiKey=" + API_KEY);
+                const configs = await response.json();
+                document.getElementById('system-name').innerText = configs.system_title;
+                document.getElementById('main-body').style.backgroundColor = configs.bg_color;
+                document.getElementById('logo-container').innerHTML = `<img src="${configs.logo_url}" style="max-width:120px;">`;
+                
+                localStorage.setItem('cached_system_title', configs.system_title);
+                localStorage.setItem('cached_bg_color', configs.bg_color);
+                localStorage.setItem('cached_logo_url', configs.logo_url);
+            } catch(e) { console.log("Config fetch failed, using cache."); }
+
+            // ログイン状態チェック
+            const savedUser = localStorage.getItem('cf_auth_user');
+            if (savedUser) {
+                const user = JSON.parse(savedUser);
+                showAfterLogin(user);
+            }
+        };
+
+        async function handleLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            const btn = document.getElementById('loginBtn');
+
+            if (!email || !password) {
+                errorMsg.innerText = "情報を入力してください。";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "認証中...";
+            showLoading(true);
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "login", apiKey: API_KEY, userId: email, password: password })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    localStorage.setItem('cf_auth_user', JSON.stringify(res.user));
+                    showAfterLogin(res.user);
+                } else {
+                    errorMsg.innerText = res.message;
+                    btn.disabled = false;
+                    btn.innerText = "ログイン";
+                }
+            } catch (error) {
+                errorMsg.innerText = "通信エラーが発生しました。";
+                btn.disabled = false;
+                btn.innerText = "ログイン";
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showAfterLogin(user) {
+            currentUserId = user.userId;
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('after-login-area').style.display = 'block';
+            document.getElementById('welcome-msg').innerText = `こんにちは、${user.userName} 様`;
+            
+            loadUnreadList(user.userId);
         }
 
         async function loadUnreadList(userId) {
-            const response = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "get_unread_list", apiKey: API_KEY, userId: userId })});
-            const d = await response.json();
-            if (d.success) {
-                // 指認④の修正: 件数ラベルの動的更新
-                document.getElementById('unread-summary-btn').innerText = `未確認の文書が ${d.unread.length} 件あります ▼`;
+            showLoading(true);
+            try {
+                const response = await fetch(GAS_URL + "?action=get_unread&apiKey=" + API_KEY + "&userId=" + userId);
+                const d = await response.json();
+                updateAccordion(d);
+
+                const pendingId = sessionStorage.getItem('pendingContentId');
+                if (pendingId) {
+                    const item = d.unread.find(x => x.id === pendingId);
+                    if (item) {
+                        sessionStorage.removeItem('pendingContentId');
+                        confirmContent(item.id, item.url);
+                    }
+                }
+            } catch (e) {
+                console.error("List fetch failed", e);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updateAccordion(d) {
+            const btn = document.getElementById('unread-accordion');
+            if (d.unread.length === 0) {
+                btn.innerText = "✅ 未読の案内はありません";
+                btn.disabled = true;
+                document.getElementById('alert-list').style.display = "none";
+            } else {
+                btn.innerText = `⏳ 未読が ${d.unread.length} 件あります ▼`;
                 renderAlertList(d.unread);
             }
         }
@@ -113,12 +199,19 @@
 
         async function confirmContent(id, url) {
             window.open(url, '_blank');
-            await fetch(GAS_URL, {
-                method: "POST",
-                body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, userId: currentUserId, contentId: id })
-            });
-            // 指摘④の解決: 処理後にリストを再取得して件数を減らす
-            loadUnreadList(currentUserId);
+            showLoading(true);
+            try {
+                await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, userId: currentUserId, contentId: id })
+                });
+                // 処理後にリストを再取得して件数を減らす
+                await loadUnreadList(currentUserId);
+            } catch (e) {
+                console.error("Confirm failed", e);
+            } finally {
+                showLoading(false);
+            }
         }
 
         function toggleAccordion() {
@@ -126,7 +219,10 @@
             list.style.display = (list.style.display === "none" || list.style.display === "") ? "block" : "none";
         }
 
-        function finalizeRedirect() { if (cachedRedirectUrl) window.location.href = cachedRedirectUrl; }
+        function handleLogout() {
+            localStorage.removeItem('cf_auth_user');
+            location.reload();
+        }
     </script>
 </body>
 </html>
