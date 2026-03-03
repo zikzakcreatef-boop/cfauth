@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.45a</title>
+    <title>CF認証システム v1.45b</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; background: #f0f2f5; }
@@ -59,7 +59,7 @@
     <script>
         let currentUserId = "";
 
-        // v1.45 追加: ローディング表示制御関数
+        /* v1.45 追加: ローディング表示制御 */
         function showLoading(isVisible) {
             const overlay = document.getElementById('loading-overlay');
             if (overlay) overlay.style.display = isVisible ? 'flex' : 'none';
@@ -114,7 +114,7 @@
 
             btn.disabled = true;
             btn.innerText = "認証中...";
-            showLoading(true); // v1.45 追加
+            showLoading(true); /* v1.45 追加 */
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -135,7 +135,7 @@
                 btn.disabled = false;
                 btn.innerText = "ログイン";
             } finally {
-                showLoading(false); // v1.45 追加
+                showLoading(false); /* v1.45 追加 */
             }
         }
 
@@ -149,7 +149,7 @@
         }
 
         async function loadUnreadList(userId) {
-            showLoading(true); // v1.45 追加
+            showLoading(true); /* v1.45 追加 */
             try {
                 const response = await fetch(GAS_URL + "?action=get_unread&apiKey=" + API_KEY + "&userId=" + userId);
                 const d = await response.json();
@@ -166,7 +166,7 @@
             } catch (e) { 
                 console.error("List fetch failed", e); 
             } finally {
-                showLoading(false); // v1.45 追加
+                showLoading(false); /* v1.45 追加 */
             }
         }
 
@@ -195,7 +195,7 @@
 
         async function confirmContent(id, url) {
             window.open(url, '_blank');
-            showLoading(true); // v1.45 追加
+            showLoading(true); /* v1.45 追加 */
             try {
                 await fetch(GAS_URL, {
                     method: "POST",
@@ -206,7 +206,7 @@
             } catch (e) {
                 console.error("Confirm failed", e);
             } finally {
-                showLoading(false); // v1.45 追加
+                showLoading(false); /* v1.45 追加 */
             }
         }
 
