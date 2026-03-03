@@ -170,7 +170,7 @@ button:disabled {
     min-height: 1.4em;
 }
 
-/* --- v1.45 追加箇所: ローディングオーバーレイ --- */
+/* --- v1.45 追加: ローディングオーバーレイ --- */
 #loading-overlay {
     display: none;
     position: fixed;
