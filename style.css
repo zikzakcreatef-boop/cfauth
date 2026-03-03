@@ -69,139 +69,42 @@ input {
     width: 100%;
     padding: 12px;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 16px;
+    border-radius: 6px;
     box-sizing: border-box;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-/* 6. ボタン共通（ログイン / 申請など） */
-button {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
     font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
 }
 
-/* 青ボタン（メイン） */
-.btn-primary {
+/* 6. ボタン */
+.btn, .login-btn {
+    width: 100%;
+    padding: 14px;
     background-color: #007bff;
-    color: #fff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
 }
 
-.btn-primary:hover {
-    background-color: #0069d9;
+.btn:hover { background-color: #0056b3; }
+.btn:disabled { background-color: #ccc; }
+
+/* 7. ステータスメッセージ */
+.status-message {
+    margin-top: 15px;
+    font-size: 14px;
+    word-wrap: break-word;
 }
 
-/* 緑ボタン（申請・更新） */
-.btn-success {
-    background-color: #28a745;
-    color: #fff;
-}
-
-.btn-success:hover {
-    background-color: #218838;
-}
-
-button:active {
-    transform: scale(0.98);
-}
-
-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
-
-/* 7. フッターリンク */
+/* 8. フッターリンク */
 .footer-links {
     margin-top: 24px;
-    border-top: 1px solid #eee;
-    padding-top: 20px;
-}
-
-.footer-links a {
-    color: #007bff;
-    text-decoration: none;
-    font-size: 14px;
-    transition: color 0.2s;
-}
-
-.footer-links a:hover {
-    color: #0056b3;
-    text-decoration: underline;
+    font-size: 13px;
 }
 
 .back-link {
-    display: inline-block;
-    margin-top: 10px;
-}
-
-/* 8. アニメーション（フェードイン） */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.form-box {
-    animation: fadeIn 0.4s ease-out;
-}
-
-/* 9. スマホ対応（さらに強化） */
-@media (max-width: 480px) {
-    body { padding: 10px; }
-    .form-box { padding: 30px 20px; border-radius: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
-    .container { max-width: 100%; }
-}
-
-/* 10. メッセージ表示 */
-.status-message {
-    font-size: 14px;
-    margin-top: 15px;
-    min-height: 1.4em;
-}
-
-/* --- v1.45 追加: ローディングオーバーレイ --- */
-#loading-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.8);
-    z-index: 10000;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
-
-.spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #007bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-    margin-top: 15px;
-    font-weight: bold;
     color: #007bff;
-    font-size: 14px;
+    text-decoration: none;
 }
