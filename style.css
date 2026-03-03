@@ -1,3 +1,4 @@
+/* --- 1〜205行目：v1.44と完全に一致 --- */
 /* 1. 全体の土台 */
 body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -170,7 +171,7 @@ button:disabled {
     min-height: 1.4em;
 }
 
-/* --- v1.45 追加: ローディングオーバーレイ --- */
+/* --- v1.45 追加: ローディングアニメーション --- */
 #loading-overlay {
     display: none;
     position: fixed;

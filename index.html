@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CF認証システム v1.45b</title>
+    <title>CF認証システム v1.45c</title>
     <link rel="stylesheet" href="style.css">
     <style>
         body { opacity: 0; transition: opacity 0.3s; margin: 0; background: #f0f2f5; }
@@ -59,7 +59,7 @@
     <script>
         let currentUserId = "";
 
-        /* v1.45 追加: ローディング表示制御 */
+        /* v1.45 追加: ローディング制御関数 */
         function showLoading(isVisible) {
             const overlay = document.getElementById('loading-overlay');
             if (overlay) overlay.style.display = isVisible ? 'flex' : 'none';
@@ -114,7 +114,7 @@
 
             btn.disabled = true;
             btn.innerText = "認証中...";
-            showLoading(true); /* v1.45 追加 */
+            showLoading(true); /* v1.45 挿入 */
 
             try {
                 const response = await fetch(GAS_URL, {
@@ -135,7 +135,7 @@
                 btn.disabled = false;
                 btn.innerText = "ログイン";
             } finally {
-                showLoading(false); /* v1.45 追加 */
+                showLoading(false); /* v1.45 挿入 */
             }
         }
 
@@ -149,7 +149,7 @@
         }
 
         async function loadUnreadList(userId) {
-            showLoading(true); /* v1.45 追加 */
+            showLoading(true); /* v1.45 挿入 */
             try {
                 const response = await fetch(GAS_URL + "?action=get_unread&apiKey=" + API_KEY + "&userId=" + userId);
                 const d = await response.json();
@@ -163,10 +163,10 @@
                         confirmContent(item.id, item.url);
                     }
                 }
-            } catch (e) { 
-                console.error("List fetch failed", e); 
+            } catch (e) {
+                console.error("List fetch failed", e);
             } finally {
-                showLoading(false); /* v1.45 追加 */
+                showLoading(false); /* v1.45 挿入 */
             }
         }
 
@@ -185,28 +185,28 @@
         function renderAlertList(list) {
             const container = document.getElementById('alert-list');
             container.innerHTML = list.map(item => `
-                <div class="unread-item">
-                    <span class="status-badge">未読</span>
-                    <div style="font-weight:bold;">${item.title}</div>
-                    <button onclick="confirmContent('${item.id}', '${item.url}')" style="width:100%; margin-top:8px; padding:8px; cursor:pointer; background:#f8f9fa; border:1px solid #ddd; border-radius:4px;">内容を表示して確認</button>
+                <div class=\"unread-item\">
+                    <span class=\"status-badge\">未読</span>
+                    <div style=\"font-weight:bold;\">${item.title}</div>
+                    <button onclick=\"confirmContent('${item.id}', '${item.url}')\" style=\"width:100%; margin-top:8px; padding:8px; cursor:pointer; background:#f8f9fa; border:1px solid #ddd; border-radius:4px;\">内容を表示して確認</button>
                 </div>
             `).join('');
         }
 
         async function confirmContent(id, url) {
             window.open(url, '_blank');
-            showLoading(true); /* v1.45 追加 */
+            showLoading(true); /* v1.45 挿入 */
             try {
                 await fetch(GAS_URL, {
                     method: "POST",
                     body: JSON.stringify({ action: "mark_as_read", apiKey: API_KEY, userId: currentUserId, contentId: id })
                 });
                 // 指摘④の解決: 処理後にリストを再取得して件数を減らす
-                loadUnreadList(currentUserId);
+                await loadUnreadList(currentUserId);
             } catch (e) {
                 console.error("Confirm failed", e);
             } finally {
-                showLoading(false); /* v1.45 追加 */
+                showLoading(false); /* v1.45 挿入 */
             }
         }
 
